@@ -43,6 +43,9 @@ COMFYUI_MAX_DELAY = 16  # Maximum delay in seconds
 # Publish configuration (optional env var for COMFYUI_OUTPUT_ROOT only)
 COMFYUI_OUTPUT_ROOT = os.getenv("COMFYUI_OUTPUT_ROOT")
 
+# MCP Server address configuration (default to localhost for security)
+MCP_SERVER_HOST = os.getenv("COMFY_MCP_SERVER_HOST", "127.0.0.1")
+
 # MCP Server port configuration (default to 9000 for consistency with previous version)
 MCP_SERVER_PORT = int(os.getenv("COMFY_MCP_SERVER_PORT", "9000"))
 
@@ -188,6 +191,7 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
 mcp = FastMCP(
     "ComfyUI_MCP_Server",
     lifespan=app_lifespan,
+    host=MCP_SERVER_HOST,
     port=MCP_SERVER_PORT,
     stateless_http=True
 )
@@ -227,10 +231,10 @@ if __name__ == "__main__":
         print("[+] Server Ready".center(70))
         print("=" * 70)
         print(f"  Transport: streamable-http")
-        print(f"  Endpoint: http://127.0.0.1:{MCP_SERVER_PORT}/mcp")
+        print(f"  Endpoint: http://{MCP_SERVER_HOST}:{MCP_SERVER_PORT}/mcp")
         print(f"[+] ComfyUI verified at: {COMFYUI_URL}")
         print("=" * 70 + "\n")
-        logger.info(f"Starting MCP server with streamable-http transport on http://127.0.0.1:{MCP_SERVER_PORT}/mcp")
+        logger.info(f"Starting MCP server with streamable-http transport on http://{MCP_SERVER_HOST}:{MCP_SERVER_PORT}/mcp")
         logger.info(f"ComfyUI verified at: {COMFYUI_URL}")
         try:
             mcp.run(transport="streamable-http")
