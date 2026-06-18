@@ -36,6 +36,7 @@ ASSET_TTL_HOURS = int(os.getenv("COMFY_MCP_ASSET_TTL_HOURS", "24"))
 
 # ComfyUI connection configuration
 COMFYUI_URL = os.getenv("COMFYUI_URL", "http://localhost:8188")
+PUBLIC_COMFYUI_URL = os.getenv("PUBLIC_COMFYUI_URL", COMFYUI_URL)
 COMFYUI_MAX_RETRIES = 5  # Number of retry attempts
 COMFYUI_INITIAL_DELAY = 2  # Initial delay in seconds
 COMFYUI_MAX_DELAY = 16  # Maximum delay in seconds
@@ -136,10 +137,10 @@ if not check_comfyui_available(COMFYUI_URL):
         sys.exit(1)
 
 # Global ComfyUI client (fallback since context isn't available)
-comfyui_client = ComfyUIClient(COMFYUI_URL)
+comfyui_client = ComfyUIClient(COMFYUI_URL, public_url=PUBLIC_COMFYUI_URL)
 workflow_manager = WorkflowManager(WORKFLOW_DIR)
 defaults_manager = DefaultsManager(comfyui_client)
-asset_registry = AssetRegistry(ttl_hours=ASSET_TTL_HOURS, comfyui_base_url=COMFYUI_URL)
+asset_registry = AssetRegistry(ttl_hours=ASSET_TTL_HOURS, comfyui_base_url=PUBLIC_COMFYUI_URL)
 
 # Publish manager (always initialized, uses auto-detection)
 try:

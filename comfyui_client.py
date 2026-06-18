@@ -11,8 +11,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ComfyUIClient")
 
 class ComfyUIClient:
-    def __init__(self, base_url):
+    def __init__(self, base_url, public_url=None):
         self.base_url = base_url
+        self.public_url = public_url if public_url else base_url
         self.available_models = self._get_available_models()
         self.available_unets = self._get_models_for_node("UNETLoader", "unet_name")
         self.available_clips = self._get_models_for_node("CLIPLoader", "clip_name")
@@ -515,7 +516,7 @@ class ComfyUIClient:
                     subfolder = asset.get("subfolder", "")
                     output_type = asset.get("type", "output")
                     logger.info("Found asset: filename=%s, subfolder=%s, type=%s", filename, subfolder, output_type)
-                    return f"{self.base_url}/view?filename={filename}&subfolder={subfolder}&type={output_type}"
+                    return f"{self.public_url}/view?filename={filename}&subfolder={subfolder}&type={output_type}"
         
         # Enhanced error message with actual output structure
         logger.error("No outputs matched preferred keys: %s", preferred_output_keys)
@@ -547,7 +548,7 @@ class ComfyUIClient:
                     output_type = asset.get("type", "output")
                     
                     # URL encode for special characters
-                    base_url = self.base_url.rstrip('/')
+                    base_url = self.public_url.rstrip('/')
                     encoded_filename = quote(filename, safe='')
                     encoded_subfolder = quote(subfolder, safe='') if subfolder else ''
                     
