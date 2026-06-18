@@ -8,12 +8,19 @@ import argparse
 import json
 import pprint
 import sys
+import os
 from typing import Any, Dict, Optional
 
 import requests
 
+# MCP Server address configuration (default to localhost for security)
+MCP_SERVER_HOST = os.getenv("MCP_SERVER_HOST", "127.0.0.1")
+
+# MCP Server port configuration (default to 9000 for consistency with previous version)
+MCP_SERVER_PORT = int(os.getenv("MCP_SERVER_PORT", "9000"))
+
 # Configuration
-MCP_ENDPOINT = "http://127.0.0.1:9000/mcp"
+MCP_ENDPOINT = f"http://{MCP_SERVER_HOST}:{MCP_SERVER_PORT}/mcp"
 REQUEST_TIMEOUT = 300  # 5 minutes for long-running operations
 REQUEST_HEADERS = {
     "Content-Type": "application/json",

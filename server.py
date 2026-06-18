@@ -44,10 +44,10 @@ COMFYUI_MAX_DELAY = 16  # Maximum delay in seconds
 COMFYUI_OUTPUT_ROOT = os.getenv("COMFYUI_OUTPUT_ROOT")
 
 # MCP Server address configuration (default to localhost for security)
-MCP_SERVER_HOST = os.getenv("COMFY_MCP_SERVER_HOST", "127.0.0.1")
+MCP_SERVER_HOST = os.getenv("MCP_SERVER_HOST", "127.0.0.1")
 
 # MCP Server port configuration (default to 9000 for consistency with previous version)
-MCP_SERVER_PORT = int(os.getenv("COMFY_MCP_SERVER_PORT", "9000"))
+MCP_SERVER_PORT = int(os.getenv("MCP_SERVER_PORT", "9000"))
 
 def print_startup_banner():
     """Print a nice startup banner for the server."""
