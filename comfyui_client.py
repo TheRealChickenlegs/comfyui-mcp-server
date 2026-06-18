@@ -135,19 +135,31 @@ class ComfyUIClient:
                             metadata["mime_type"] = "image/gif"
                         break
         
-        # Extract dimensions from workflow (EmptyLatentImage node) - much more efficient than analyzing image
+        # Extract dimensions from workflow nodes
         if workflow and (metadata["width"] is None or metadata["height"] is None):
             for node_id, node_data in workflow.items():
                 if not isinstance(node_data, dict):
                     continue
-                if node_data.get("class_type") == "EmptyLatentImage":
-                    inputs = node_data.get("inputs", {})
+                class_type = node_data.get("class_type")
+                inputs = node_data.get("inputs", {})
+
+                # Standard SD: EmptyLatentImage has direct width/height values
+                if class_type == "EmptyLatentImage":
                     if "width" in inputs and metadata["width"] is None:
                         metadata["width"] = inputs["width"]
                     if "height" in inputs and metadata["height"] is None:
                         metadata["height"] = inputs["height"]
-                    if metadata["width"] and metadata["height"]:
-                        break
+
+                # Flux: PrimitiveInt nodes labeled "Width" or "Height"
+                if class_type == "PrimitiveInt" and "value" in inputs:
+                    title = node_data.get("_meta", {}).get("title", "").lower()
+                    if title == "width" and metadata["width"] is None:
+                        metadata["width"] = inputs["value"]
+                    elif title == "height" and metadata["height"] is None:
+                        metadata["height"] = inputs["value"]
+
+                if metadata["width"] and metadata["height"]:
+                    break
         
         # Try to fetch headers to get size (non-blocking, best effort)
         try:

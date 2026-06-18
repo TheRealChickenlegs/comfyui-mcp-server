@@ -23,7 +23,8 @@ class DefaultsManager:
         self._runtime_defaults: Dict[str, Dict[str, Any]] = {
             "image": {},
             "audio": {},
-            "video": {}
+            "video": {},
+            "flux": {}
         }
         self._config_defaults = self._load_config_defaults()
         # Model validation state
@@ -63,6 +64,17 @@ class DefaultsManager:
                 "negative_prompt": "text, watermark",
                 "duration": 5,
                 "fps": 16,
+            },
+            "flux": {
+                "width": 1024,
+                "height": 1024,
+                "steps": 20,
+                "cfg": 5.0,
+                "sampler_name": "euler",
+                "unet": "flux-2-klein-base-9b-fp8.safetensors",
+                "clip": "qwen_3_8b_fp8mixed.safetensors",
+                "vae": "full_encoder_small_decoder.safetensors",
+                "negative_prompt": "gibberish text, misspelled words, distorted letters, malformed typography, blurry text, low quality, bad quality",
             }
         }
         # Validate default models at startup (non-fatal, logs warnings)
@@ -70,7 +82,7 @@ class DefaultsManager:
     
     def _load_config_defaults(self) -> Dict[str, Dict[str, Any]]:
         """Load defaults from config file"""
-        defaults = {"image": {}, "audio": {}, "video": {}}
+        defaults = {"image": {}, "audio": {}, "video": {}, "flux": {}}
         if CONFIG_FILE.exists():
             try:
                 with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -78,6 +90,7 @@ class DefaultsManager:
                     defaults["image"] = config.get("defaults", {}).get("image", {})
                     defaults["audio"] = config.get("defaults", {}).get("audio", {})
                     defaults["video"] = config.get("defaults", {}).get("video", {})
+                    defaults["flux"] = config.get("defaults", {}).get("flux", {})
             except (json.JSONDecodeError, IOError) as e:
                 logger.warning(f"Failed to load config file {CONFIG_FILE}: {e}")
         return defaults
@@ -126,10 +139,11 @@ class DefaultsManager:
         result = {
             "image": {},
             "audio": {},
-            "video": {}
+            "video": {},
+            "flux": {}
         }
         
-        for namespace in ["image", "audio", "video"]:
+        for namespace in ["image", "audio", "video", "flux"]:
             # Start with hardcoded
             result[namespace] = self._hardcoded_defaults[namespace].copy()
             # Override with env
@@ -145,8 +159,8 @@ class DefaultsManager:
         """Set runtime defaults for a namespace. Returns validation errors if any."""
         errors = []
         
-        if namespace not in ["image", "audio", "video"]:
-            return {"error": f"Invalid namespace: {namespace}. Must be 'image', 'audio', or 'video'"}
+        if namespace not in ["image", "audio", "video", "flux"]:
+            return {"error": f"Invalid namespace: {namespace}. Must be 'image', 'audio', 'video', or 'flux'"}
         
         # Validate model names if provided
         if validate_models and "model" in defaults:
@@ -245,7 +259,7 @@ class DefaultsManager:
         self.refresh_model_set()
         
         # Validate each namespace
-        for namespace in ["image", "audio", "video"]:
+        for namespace in ["image", "audio", "video", "flux"]:
             is_valid, model_name, source = self.validate_default_model(namespace)
             if not is_valid and model_name:
                 logger.warning(

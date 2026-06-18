@@ -39,6 +39,10 @@ PLACEHOLDER_DESCRIPTIONS = {
     "lyrics_strength": "How strongly lyrics influence audio generation (0.0-1.0). Default: 0.99.",
     "duration": "Video duration in seconds. Default: 5.",
     "fps": "Frames per second for video output. Default: 16.",
+    "unet": "UNet model name for Flux (e.g., 'flux-2-klein-base-9b-fp8.safetensors').",
+    "clip": "CLIP model name for Flux (e.g., 'qwen_3_8b_fp8mixed.safetensors').",
+    "vae": "VAE model name for Flux (e.g., 'full_encoder_small_decoder.safetensors').",
+    "image": "Input image filename in ComfyUI's input directory (for img2img workflows).",
 }
 DEFAULT_OUTPUT_KEYS = ("images", "image", "gifs", "gif")
 AUDIO_OUTPUT_KEYS = ("audio", "audios", "sound", "files")
@@ -389,11 +393,13 @@ class WorkflowManager:
                     # Only 'prompt' should be required for generate_image
                     # Only 'tags' and 'lyrics' should be required for generate_song
                     # Only 'prompt' should be required for generate_video
+                    # 'image' is required for edit_image_flux
                     optional_params = {
                         "seed", "width", "height", "model", "steps", "cfg",
                         "sampler_name", "scheduler", "denoise", "negative_prompt",
                         "seconds", "lyrics_strength",  # Audio-specific optional params
-                        "duration", "fps"  # Video-specific optional params
+                        "duration", "fps",  # Video-specific optional params
+                        "unet", "clip", "vae",  # Flux-specific optional params
                     }
                     is_required = param_name not in optional_params
                     parameter = WorkflowParameter(
@@ -455,6 +461,8 @@ class WorkflowManager:
             return "audio"
         elif workflow_id == "generate_video":
             return "video"
+        elif "flux" in workflow_id:
+            return "flux"
         else:
             return "image"  # default fallback
     

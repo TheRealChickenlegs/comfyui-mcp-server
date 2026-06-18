@@ -240,9 +240,9 @@ def _update_workflow_params(workflow: dict, param_overrides: dict) -> dict:
     param_mappings = {
         "prompt": {"class_type": "CLIPTextEncode", "input_key": "text", "is_negative": False},
         "negative_prompt": {"class_type": "CLIPTextEncode", "input_key": "text", "is_negative": True},
-        "steps": {"class_type": "KSampler", "input_key": "steps"},
-        "cfg": {"class_type": "KSampler", "input_key": "cfg"},
-        "sampler_name": {"class_type": "KSampler", "input_key": "sampler_name"},
+        "steps": {"class_type": None, "input_key": "steps"},  # Works for KSampler and Flux2Scheduler
+        "cfg": {"class_type": None, "input_key": "cfg"},  # Works for KSampler and CFGGuider
+        "sampler_name": {"class_type": None, "input_key": "sampler_name"},  # Works for KSampler and KSamplerSelect
         "scheduler": {"class_type": "KSampler", "input_key": "scheduler"},
         "denoise": {"class_type": "KSampler", "input_key": "denoise"},
         "width": {"class_type": "EmptyLatentImage", "input_key": "width"},
@@ -253,6 +253,11 @@ def _update_workflow_params(workflow: dict, param_overrides: dict) -> dict:
         "lyrics": {"class_type": None, "input_key": "lyrics"},
         "seconds": {"class_type": None, "input_key": "seconds"},
         "lyrics_strength": {"class_type": None, "input_key": "lyrics_strength"},
+        # Flux-specific
+        "unet": {"class_type": "UNETLoader", "input_key": "unet_name"},
+        "clip": {"class_type": "CLIPLoader", "input_key": "clip_name"},
+        "vae": {"class_type": "VAELoader", "input_key": "vae_name"},
+        "image": {"class_type": "LoadImage", "input_key": "image"},
     }
     
     for param_name, override_value in param_overrides.items():
@@ -325,13 +330,16 @@ def _update_seed(workflow: dict, seed: Optional[int]) -> dict:
     if seed is None:
         seed = random.randint(0, 0xffffffffffffffff)
     
-    # Find and update all KSampler nodes
+    # Find and update all KSampler and RandomNoise nodes
     for node_id, node_data in workflow.items():
         if not isinstance(node_data, dict):
             continue
         if node_data.get("class_type") == "KSampler":
             inputs = node_data.get("inputs", {})
             inputs["seed"] = seed
+        elif node_data.get("class_type") == "RandomNoise":
+            inputs = node_data.get("inputs", {})
+            inputs["noise_seed"] = seed
     
     return workflow
 
