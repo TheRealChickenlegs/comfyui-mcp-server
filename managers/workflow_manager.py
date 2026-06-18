@@ -243,7 +243,15 @@ class WorkflowManager:
         # Apply defaults for parameters not in overrides
         for param_name, param in parameters.items():
             if param_name not in overrides and not param.required:
-                if defaults_manager:
+                if param_name == "seed" and param.annotation is int:
+                    # Special handling for seed - generate random
+                    import random
+                    seed_value = random.randint(0, 2**32 - 1)
+                    for node_id, input_name in param.bindings:
+                        if node_id in workflow and "inputs" in workflow[node_id]:
+                            workflow[node_id]["inputs"][input_name] = seed_value
+                    overrides_applied[param_name] = seed_value
+                elif defaults_manager:
                     default_value = defaults_manager.get_default(namespace, param.name, None)
                     if default_value is not None:
                         for node_id, input_name in param.bindings:

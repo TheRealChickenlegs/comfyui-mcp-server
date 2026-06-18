@@ -91,12 +91,12 @@ class ComfyUIClient:
             logger.warning(f"Error fetching models: {e}")
             return []
 
-    def run_custom_workflow(self, workflow: Dict[str, Any], preferred_output_keys: Sequence[str] | None = None, max_attempts: int = 30):
+    def run_custom_workflow(self, workflow: Dict[str, Any], preferred_output_keys: Sequence[str] | None = None, max_attempts: int = 120):
         if preferred_output_keys is None:
             preferred_output_keys = ("images", "image", "gifs", "gif", "audio", "audios", "files")
 
         prompt_id = self._queue_workflow(workflow)
-        outputs = self._wait_for_prompt(prompt_id, max_attempts=max_attempts)
+        outputs = self._wait_for_prompt(prompt_id, max_attempts=max_attempts, workflow=workflow)
 
         # If outputs is None, the workflow is still running (timeout).
         # Return a job handle instead of raising an error.
@@ -312,7 +312,47 @@ class ComfyUIClient:
 
         return "; ".join(parts)
 
-    def _wait_for_prompt(self, prompt_id: str, max_attempts: int = 30):
+    def _reconstruct_outputs_from_history(self, full_history: Dict[str, Any], workflow: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+        """Reconstruct outputs by matching workflow SaveImage prefixes against full history.
+
+        Cached executions sometimes leave outputs empty in the prompt-specific
+        history endpoint. This method finds the SaveImage node's filename_prefix
+        from the workflow and searches ALL history entries for outputs that match.
+        """
+        if not workflow:
+            return None
+        # Find SaveImage node in workflow and extract filename_prefix
+        save_image_prefixes = []
+        for node_id, node_data in workflow.items():
+            if isinstance(node_data, dict) and node_data.get("class_type") == "SaveImage":
+                filename_prefix = node_data.get("inputs", {}).get("filename_prefix", "")
+                if filename_prefix:
+                    save_image_prefixes.append(filename_prefix)
+        if not save_image_prefixes:
+            return None
+        # Search all history entries for outputs matching any prefix
+        for entry_prompt_id, entry_data in full_history.items():
+            if not isinstance(entry_data, dict):
+                continue
+            entry_outputs = entry_data.get("outputs")
+            if not entry_outputs or not isinstance(entry_outputs, dict):
+                continue
+            for node_id, node_output in entry_outputs.items():
+                if not isinstance(node_output, dict):
+                    continue
+                images = node_output.get("images", [])
+                if not isinstance(images, list):
+                    continue
+                for img in images:
+                    if not isinstance(img, dict):
+                        continue
+                    filename = img.get("filename", "")
+                    if any(filename.startswith(prefix) for prefix in save_image_prefixes):
+                        logger.info("Reconstructed outputs from prompt %s (prefix match: %s)", entry_prompt_id, filename)
+                        return entry_outputs
+        return None
+
+    def _wait_for_prompt(self, prompt_id: str, max_attempts: int = 120, workflow: Optional[Dict[str, Any]] = None):
         for attempt in range(max_attempts):
             try:
                 # Try both the specific prompt_id endpoint and the full history endpoint
@@ -406,8 +446,27 @@ class ComfyUIClient:
                         raise Exception(f"Workflow execution failed: {node_errors}")
 
                     if self._has_status_message(messages, "execution_success"):
-                        logger.warning("Workflow succeeded but outputs empty. Waiting longer...")
+                        # Try full history as fallback — cached runs sometimes
+                        # only populate outputs in the full history endpoint
+                        logger.warning("Outputs empty despite execution_success. Trying full history...")
                         time.sleep(2)
+                        try:
+                            full_history_response = requests.get(f"{self.base_url}/history", timeout=10)
+                            if full_history_response.status_code == 200:
+                                full_history = full_history_response.json()
+                                if prompt_id in full_history:
+                                    full_prompt_data = full_history[prompt_id]
+                                    if "outputs" in full_prompt_data and full_prompt_data["outputs"]:
+                                        logger.info("Found outputs in full history endpoint")
+                                        return full_prompt_data["outputs"]
+                                # Last resort: scan all history entries for outputs
+                                # matching our workflow's SaveImage filename_prefix
+                                reconstructed = self._reconstruct_outputs_from_history(full_history, workflow)
+                                if reconstructed:
+                                    logger.info("Reconstructed outputs from other history entries")
+                                    return reconstructed
+                        except Exception as e:
+                            logger.debug("Full history fallback failed: %s", e)
                         continue
 
                     # Build diagnostic message from whatever status info we have

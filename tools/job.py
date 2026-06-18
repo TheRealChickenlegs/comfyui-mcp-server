@@ -133,9 +133,33 @@ def register_job_tools(
                             "message": "Job completed successfully"
                         }
                     else:
+                        # Outputs empty — check if execution succeeded (cached runs
+                        # sometimes don't populate outputs in the per-prompt endpoint)
+                        status = prompt_data.get("status", {})
+                        status_str = status.get("status_str", "") if isinstance(status, dict) else ""
+                        messages = status.get("messages", []) if isinstance(status, dict) else status if isinstance(status, list) else []
+                        
+                        # Check for cached success
+                        if any("execution_success" in str(m) for m in messages):
+                            # Try full history as fallback
+                            try:
+                                full_history = comfyui_client.get_history()
+                                if prompt_id in full_history:
+                                    fp = full_history[prompt_id]
+                                    if "outputs" in fp and fp["outputs"]:
+                                        return {
+                                            "status": "completed",
+                                            "prompt_id": prompt_id,
+                                            "outputs": fp["outputs"],
+                                            "history": fp,
+                                            "message": "Job completed (outputs from full history)"
+                                        }
+                            except Exception as e:
+                                logger.warning(f"Full history fallback failed: {e}")
+                        
                         # History exists but no outputs yet (might be in transition)
                         return {
-                            "status": "processing",
+                            "status": "processing" if not status_str == "success" else "completed",
                             "prompt_id": prompt_id,
                             "message": "Job completed but outputs not yet available",
                             "history": prompt_data
