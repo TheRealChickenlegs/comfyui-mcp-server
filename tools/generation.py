@@ -161,14 +161,10 @@ def register_workflow_generation_tools(
                 )
                 required_params.append(parameter)
             else:
-                if param.annotation in (int, float):
-                    final_annotation = Optional[annotation_type]
-                else:
-                    final_annotation = Optional[annotation_type]
                 parameter = inspect.Parameter(
                     name=param.name,
                     kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                    annotation=final_annotation,
+                    annotation=annotation_type,
                     default=None,
                 )
                 optional_params.append(parameter)
