@@ -151,13 +151,7 @@ def register_workflow_generation_tools(
         annotations: Dict[str, Any] = {}
         
         for param in definition.parameters.values():
-            # For numeric types, use Any to allow string coercion from JSON-RPC
-            # FastMCP/Pydantic validation is strict, so we accept Any and validate/coerce ourselves
-            if param.annotation in (int, float):
-                # Use Any to bypass strict type checking, we'll coerce in the function
-                annotation_type = Any
-            else:
-                annotation_type = param.annotation
+            annotation_type = param.annotation
             
             if param.required:
                 parameter = inspect.Parameter(
@@ -167,10 +161,8 @@ def register_workflow_generation_tools(
                 )
                 required_params.append(parameter)
             else:
-                # Optional parameter with default value
-                # For numeric types, use Any directly (not Optional[Any]) to allow string coercion
                 if param.annotation in (int, float):
-                    final_annotation = Any
+                    final_annotation = Optional[annotation_type]
                 else:
                     final_annotation = Optional[annotation_type]
                 parameter = inspect.Parameter(

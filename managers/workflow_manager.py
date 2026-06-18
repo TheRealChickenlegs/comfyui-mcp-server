@@ -293,6 +293,9 @@ class WorkflowManager:
             return definitions
 
         for workflow_path in sorted(self.workflows_dir.glob("*.json")):
+            # Skip metadata files (e.g., generate_image_flux.meta.json)
+            if workflow_path.name.endswith(".meta.json"):
+                continue
             try:
                 with open(workflow_path, "r", encoding="utf-8") as handle:
                     workflow = json.load(handle)
@@ -310,10 +313,12 @@ class WorkflowManager:
                 continue
 
             tool_name = self._dedupe_tool_name(self._derive_tool_name(workflow_path.stem))
+            metadata = self._load_workflow_metadata(workflow_path)
+            description = metadata.get("description") or self._derive_description(workflow_path.stem)
             definition = WorkflowToolDefinition(
                 workflow_id=workflow_path.stem,
                 tool_name=tool_name,
-                description=self._derive_description(workflow_path.stem),
+                description=description,
                 template=workflow,
                 parameters=parameters,
                 output_preferences=self._guess_output_preferences(workflow),

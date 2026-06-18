@@ -14,10 +14,46 @@ class ComfyUIClient:
     def __init__(self, base_url):
         self.base_url = base_url
         self.available_models = self._get_available_models()
+        self.available_unets = self._get_models_for_node("UNETLoader", "unet_name")
+        self.available_clips = self._get_models_for_node("CLIPLoader", "clip_name")
+        self.available_vaes = self._get_models_for_node("VAELoader", "vae_name")
     
     def refresh_models(self):
         """Re-fetch available models and update available_models list."""
         self.available_models = self._get_available_models()
+        self.available_unets = self._get_models_for_node("UNETLoader", "unet_name")
+        self.available_clips = self._get_models_for_node("CLIPLoader", "clip_name")
+        self.available_vaes = self._get_models_for_node("VAELoader", "vae_name")
+
+    def _get_models_for_node(self, node_type: str, input_key: str) -> list:
+        """Fetch list of available models for a given node type from ComfyUI"""
+        try:
+            response = requests.get(f"{self.base_url}/object_info/{node_type}", timeout=10)
+            if response.status_code != 200:
+                logger.warning(f"Failed to fetch {node_type} model list")
+                return []
+            data = response.json()
+            try:
+                node_info = data.get(node_type, {})
+                if not isinstance(node_info, dict):
+                    return []
+                input_info = node_info.get("input", {})
+                if not isinstance(input_info, dict):
+                    return []
+                required_info = input_info.get("required", {})
+                if not isinstance(required_info, dict):
+                    return []
+                key_info = required_info.get(input_key, [])
+                if not isinstance(key_info, list) or len(key_info) == 0:
+                    return []
+                models = key_info[0] if isinstance(key_info[0], list) else key_info
+                return models
+            except (KeyError, IndexError, TypeError) as e:
+                logger.warning(f"Unexpected {node_type} API response structure: {e}")
+                return []
+        except requests.RequestException as e:
+            logger.warning(f"Error fetching {node_type} models: {e}")
+            return []
 
     def _get_available_models(self):
         """Fetch list of available checkpoint models from ComfyUI"""

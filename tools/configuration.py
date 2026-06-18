@@ -14,16 +14,27 @@ def register_configuration_tools(
     
     @mcp.tool()
     def list_models() -> dict:
-        """List all available checkpoint models in ComfyUI.
+        """List all available models in ComfyUI, organized by model type.
         
-        Returns a list of model names that can be used with generation tools.
-        This helps AI agents choose appropriate models for different use cases.
+        Returns checkpoint models (for SD), UNet models (for Flux), CLIP models,
+        and VAE models. This helps AI agents choose appropriate models for
+        different generation workflows.
         """
-        models = comfyui_client.available_models
+        checkpoints = comfyui_client.available_models
+        unets = comfyui_client.available_unets
+        clips = comfyui_client.available_clips
+        vaes = comfyui_client.available_vaes
         return {
-            "models": models,
-            "count": len(models),
-            "default": "v1-5-pruned-emaonly.ckpt" if models else None
+            "checkpoint_models": checkpoints,
+            "unet_models": unets,
+            "clip_models": clips,
+            "vae_models": vaes,
+            "counts": {
+                "checkpoints": len(checkpoints),
+                "unets": len(unets),
+                "clips": len(clips),
+                "vaes": len(vaes),
+            }
         }
 
     @mcp.tool()
@@ -40,14 +51,16 @@ def register_configuration_tools(
         image: Optional[Dict[str, Any]] = None,
         audio: Optional[Dict[str, Any]] = None,
         video: Optional[Dict[str, Any]] = None,
+        flux: Optional[Dict[str, Any]] = None,
         persist: bool = False
     ) -> dict:
-        """Set runtime defaults for image, audio, and/or video generation.
+        """Set runtime defaults for image, audio, video, and/or flux generation.
         
         Args:
-            image: Optional dict of default values for image generation (e.g., {"model": "sd_xl_base_1.0.safetensors", "width": 1024})
+            image: Optional dict of default values for SD image generation (e.g., {"model": "sd_xl_base_1.0.safetensors", "width": 1024})
             audio: Optional dict of default values for audio generation (e.g., {"model": "ace_step_v1_3.5b.safetensors", "seconds": 30})
             video: Optional dict of default values for video generation (e.g., {"model": "wan2.2_vae.safetensors", "width": 1280, "duration": 5})
+            flux: Optional dict of default values for Flux generation (e.g., {"unet": "flux-dev.safetensors", "width": 1024, "steps": 20})
             persist: If True, write defaults to config file (~/.config/comfy-mcp/config.json). Otherwise, changes are ephemeral.
         
         Returns:
@@ -88,6 +101,17 @@ def register_configuration_tools(
                     persist_result = defaults_manager.persist_defaults("video", video)
                     if "error" in persist_result:
                         errors.append(f"Failed to persist video defaults: {persist_result['error']}")
+        
+        if flux:
+            result = defaults_manager.set_defaults("flux", flux, validate_models=False)
+            if "error" in result or "errors" in result:
+                errors.extend(result.get("errors", [result.get("error")]))
+            else:
+                results["flux"] = result
+                if persist:
+                    persist_result = defaults_manager.persist_defaults("flux", flux)
+                    if "error" in persist_result:
+                        errors.append(f"Failed to persist flux defaults: {persist_result['error']}")
         
         if errors:
             return {"success": False, "errors": errors}
