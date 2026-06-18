@@ -2,13 +2,16 @@
 
 import copy
 import inspect
+import json
 import logging
 import random
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.utilities.types import Image as MCPImage
 from managers.workflow_manager import AUDIO_OUTPUT_KEYS, VIDEO_OUTPUT_KEYS
 from models.workflow import WorkflowToolDefinition
+from asset_processor import fetch_asset_bytes
 from tools.helpers import register_and_build_response
 
 logger = logging.getLogger("MCP_Server")
@@ -108,7 +111,7 @@ def register_workflow_generation_tools(
                 )
                 
                 # Register asset and build response
-                return register_and_build_response(
+                response_data = register_and_build_response(
                     result,
                     definition.workflow_id,
                     asset_registry,
@@ -116,6 +119,23 @@ def register_workflow_generation_tools(
                     return_inline_preview=return_inline_preview,
                     session_id=session_id
                 )
+
+                # For image results, return both text metadata and Image content type
+                # so MCP clients that support type: "image" (e.g. Claude Desktop)
+                # can display it inline. Open WebUI uses the image_markdown field.
+                if "image_markdown" in response_data:
+                    try:
+                        image_url = response_data.get("asset_url") or response_data.get("image_url")
+                        if image_url:
+                            image_bytes = fetch_asset_bytes(image_url, timeout=15)
+                            return [
+                                {"type": "text", "text": json.dumps(response_data)},
+                                MCPImage(data=image_bytes, format=response_data.get("mime_type", "image/png").split("/")[-1])
+                            ]
+                    except Exception as e:
+                        logger.warning(f"Failed to create Image content for tool result: {e}")
+
+                return response_data
                 
             except Exception as exc:
                 error_str = str(exc).lower()

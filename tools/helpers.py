@@ -78,6 +78,12 @@ def register_and_build_response(
     
     if tool_name:
         response_data["tool"] = tool_name
+
+    # Add markdown image embed hint for the LLM to include in its response
+    if asset_url:
+        supported_types = ("image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif")
+        if response_data.get("mime_type") in supported_types:
+            response_data["image_markdown"] = f"![Generated Image]({asset_url})"
     
     # Include inline preview if requested
     if return_inline_preview:

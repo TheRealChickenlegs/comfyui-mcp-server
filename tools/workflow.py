@@ -1,9 +1,12 @@
 """Workflow management tools for ComfyUI MCP Server"""
 
+import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.utilities.types import Image as MCPImage
+from asset_processor import fetch_asset_bytes
 from tools.helpers import register_and_build_response
 
 logger = logging.getLogger("MCP_Server")
@@ -91,6 +94,19 @@ def register_workflow_tools(
             if override_report and override_report.get("overrides_dropped"):
                 response["overrides_applied"] = override_report["overrides_applied"]
                 response["overrides_dropped"] = override_report["overrides_dropped"]
+
+            # For image results, return both text metadata and Image content type
+            if "image_markdown" in response:
+                try:
+                    image_url = response.get("asset_url") or response.get("image_url")
+                    if image_url:
+                        image_bytes = fetch_asset_bytes(image_url, timeout=15)
+                        return [
+                            {"type": "text", "text": json.dumps(response)},
+                            MCPImage(data=image_bytes, format=response.get("mime_type", "image/png").split("/")[-1])
+                        ]
+                except Exception as e:
+                    logger.warning(f"Failed to create Image content for tool result: {e}")
 
             return response
         except Exception as exc:

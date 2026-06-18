@@ -1,6 +1,6 @@
 {
   "name": "Generate Flux Image",
-  "description": "Generate images using Flux2 models with separate UNet, CLIP, and VAE loaders. Uses a custom advanced sampling pipeline (SamplerCustomAdvanced) with Flux2Scheduler, CFGGuider, and KSamplerSelect. Only the 'prompt' parameter is required — all others have sensible defaults.",
+  "description": "Generate images using Flux2 models with separate UNet, CLIP, and VAE loaders. Uses a custom advanced sampling pipeline (SamplerCustomAdvanced) with Flux2Scheduler, CFGGuider, and KSamplerSelect. Only the 'prompt' parameter is required — all others have sensible defaults. The response contains an 'image_markdown' field with the URL to embed. CRITICAL: You MUST include the generated image in your response to the user by embedding the markdown image URL from image_markdown — e.g. ![image](asset_url). Never just link the URL; always embed it.",
   "defaults": {
     "width": 1024,
     "height": 1024,

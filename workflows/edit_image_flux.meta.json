@@ -1,6 +1,6 @@
 {
   "name": "Edit Flux Image (img2img)",
-  "description": "Edit an existing image using Flux2 models. Takes an input image from ComfyUI's input directory, encodes it to latent space, and runs the Flux2 advanced sampling pipeline. The 'prompt' and 'image' parameters are required. Image dimensions are automatically derived from the input via GetImageSize.",
+  "description": "Edit an existing image using Flux2 models. Takes an input image from ComfyUI's input directory, encodes it to latent space, and runs the Flux2 advanced sampling pipeline. The 'prompt' and 'image' parameters are required. Image dimensions are automatically derived from the input via GetImageSize. The response contains an 'image_markdown' field with the URL to embed. CRITICAL: You MUST include the generated image in your response to the user by embedding the markdown image URL from image_markdown — e.g. ![image](asset_url). Never just link the URL; always embed it.",
   "defaults": {
     "steps": 12,
     "cfg": 1.0,
