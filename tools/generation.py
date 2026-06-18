@@ -127,9 +127,9 @@ def register_workflow_generation_tools(
                     try:
                         image_url = response_data.get("asset_url") or response_data.get("image_url")
                         if image_url:
-                            image_bytes = fetch_asset_bytes(image_url, timeout=15)
+                            image_bytes = fetch_asset_bytes(image_url, timeout=5)
                             return [
-                                {"type": "text", "text": json.dumps(response_data)},
+                                json.dumps(response_data),
                                 MCPImage(data=image_bytes, format=response_data.get("mime_type", "image/png").split("/")[-1])
                             ]
                     except Exception as e:

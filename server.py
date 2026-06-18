@@ -188,13 +188,17 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
 
 # Initialize FastMCP with lifespan and port configuration
 # Using port defined in MCP_SERVER_PORT or port 9000 for consistency with previous version
-# Enable stateless_http to avoid requiring session management
+# Use SSE mode (stateless_http=False) so tool calls don't block the HTTP
+# response.  OWUI's MCP client uses the Python MCP SDK's default 30s HTTP
+# timeout for synchronous JSON responses, but Flux generations take 50-68s.
+# With SSE the initial POST returns 202 immediately and results stream
+# back with a 300s SSE read timeout, which is plenty.
 mcp = FastMCP(
     "ComfyUI_MCP_Server",
     lifespan=app_lifespan,
     host=MCP_SERVER_HOST,
     port=MCP_SERVER_PORT,
-    stateless_http=True
+    stateless_http=False
 )
 
 # Register all MCP tools
