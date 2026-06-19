@@ -1,13 +1,12 @@
 """Workflow management tools for ComfyUI MCP Server"""
 
-import json
 import logging
 from typing import Any, Dict, List, Optional, Union
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.utilities.types import Image as MCPImage
 from asset_processor import fetch_asset_bytes
-from tools.helpers import register_and_build_response
+from tools.helpers import build_markdown_response, register_and_build_response
 
 logger = logging.getLogger("MCP_Server")
 
@@ -95,20 +94,22 @@ def register_workflow_tools(
                 response["overrides_applied"] = override_report["overrides_applied"]
                 response["overrides_dropped"] = override_report["overrides_dropped"]
 
-            # For image results, return both text metadata and Image content type
-            if "image_markdown" in response:
-                try:
-                    image_url = response.get("asset_url") or response.get("image_url")
-                    if image_url:
-                        image_bytes = fetch_asset_bytes(image_url, timeout=5)
-                        return [
-                            json.dumps(response),
-                            MCPImage(data=image_bytes, format=response.get("mime_type", "image/png").split("/")[-1])
-                        ]
-                except Exception as e:
-                    logger.warning(f"Failed to create Image content for tool result: {e}")
+            # Primary response: Markdown text with image embed (for OWUI rendering).
+            # Secondary: MCPImage content type for clients that support it (Claude Desktop).
+            markdown_text = build_markdown_response(response, tool_name=None)
+            image_url = response.get("asset_url") or response.get("image_url")
 
-            return response
+            try:
+                if image_url:
+                    image_bytes = fetch_asset_bytes(image_url, timeout=5)
+                    return [
+                        markdown_text,
+                        MCPImage(data=image_bytes, format=response.get("mime_type", "image/png").split("/")[-1])
+                    ]
+            except Exception as e:
+                logger.warning(f"Failed to create Image content for tool result: {e}")
+
+            return markdown_text
         except Exception as exc:
             logger.exception("Workflow '%s' failed", workflow_id)
             return {"error": str(exc)}

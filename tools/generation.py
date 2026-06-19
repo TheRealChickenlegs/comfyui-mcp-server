@@ -2,7 +2,6 @@
 
 import copy
 import inspect
-import json
 import logging
 import random
 from typing import Any, Dict, List, Optional, Union
@@ -12,7 +11,7 @@ from mcp.server.fastmcp.utilities.types import Image as MCPImage
 from managers.workflow_manager import AUDIO_OUTPUT_KEYS, VIDEO_OUTPUT_KEYS
 from models.workflow import WorkflowToolDefinition
 from asset_processor import fetch_asset_bytes
-from tools.helpers import register_and_build_response
+from tools.helpers import build_markdown_response, register_and_build_response
 
 logger = logging.getLogger("MCP_Server")
 
@@ -120,22 +119,22 @@ def register_workflow_generation_tools(
                     session_id=session_id
                 )
 
-                # For image results, return both text metadata and Image content type
-                # so MCP clients that support type: "image" (e.g. Claude Desktop)
-                # can display it inline. Open WebUI uses the image_markdown field.
-                if "image_markdown" in response_data:
-                    try:
-                        image_url = response_data.get("asset_url") or response_data.get("image_url")
-                        if image_url:
-                            image_bytes = fetch_asset_bytes(image_url, timeout=5)
-                            return [
-                                json.dumps(response_data),
-                                MCPImage(data=image_bytes, format=response_data.get("mime_type", "image/png").split("/")[-1])
-                            ]
-                    except Exception as e:
-                        logger.warning(f"Failed to create Image content for tool result: {e}")
+                # Primary response: Markdown text with image embed (for OWUI rendering).
+                # Secondary: MCPImage content type for clients that support it (Claude Desktop).
+                markdown_text = build_markdown_response(response_data, tool_name=definition.tool_name)
+                image_url = response_data.get("asset_url") or response_data.get("image_url")
 
-                return response_data
+                try:
+                    if image_url:
+                        image_bytes = fetch_asset_bytes(image_url, timeout=5)
+                        return [
+                            markdown_text,
+                            MCPImage(data=image_bytes, format=response_data.get("mime_type", "image/png").split("/")[-1])
+                        ]
+                except Exception as e:
+                    logger.warning(f"Failed to create Image content for tool result: {e}")
+
+                return markdown_text
                 
             except Exception as exc:
                 error_str = str(exc).lower()
