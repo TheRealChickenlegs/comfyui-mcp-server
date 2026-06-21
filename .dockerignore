@@ -5,7 +5,16 @@ __pycache__
 *.pyo
 *.pyd
 .env
+.env.example
 venv
 .venv
 tests
 docs
+.gitignore
+.mcp.json
+.cursor/
+archive/
+test_client.py
+requirements-dev.txt
+CONTRIBUTING.md
+docker-compose.yml
