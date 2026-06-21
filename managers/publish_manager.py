@@ -6,6 +6,7 @@ import os
 import platform
 import re
 import shutil
+import tempfile
 import threading
 from datetime import datetime, timezone
 from io import BytesIO
@@ -230,7 +231,7 @@ def get_default_publish_root(project_root: Path) -> Path:
     """Get default publish root directory.
     
     Tries in order: public/gen → static/gen → assets/gen
-    Creates directory if needed.
+    Falls back to a temp directory if none are writable.
     
     Args:
         project_root: Project root directory
@@ -245,14 +246,21 @@ def get_default_publish_root(project_root: Path) -> Path:
     ]
     
     for candidate in candidates:
-        if candidate.parent.exists():
-            candidate.mkdir(parents=True, exist_ok=True)
-            return candidate
+        try:
+            if candidate.parent.exists():
+                candidate.mkdir(parents=True, exist_ok=True)
+                return candidate
+        except (PermissionError, OSError):
+            logger.warning(f"Cannot create publish root at {candidate}")
+            continue
     
-    # If none of the parent dirs exist, use public/gen (most common)
-    default = candidates[0]
-    default.mkdir(parents=True, exist_ok=True)
-    return default
+    # Fallback: use a temp directory so publishing is still usable
+    fallback = Path(tempfile.mkdtemp(prefix="comfyui-mcp-publish-"))
+    logger.warning(
+        f"Using temporary publish root at {fallback}. "
+        f"To use a permanent directory, set COMFYUI_OUTPUT_ROOT or mount a volume."
+    )
+    return fallback
 
 
 def validate_comfyui_output_root(path: Path) -> bool:
