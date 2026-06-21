@@ -224,137 +224,11 @@ def register_workflow_generation_tools(
         )
 
 
-def _update_workflow_params(workflow: dict, param_overrides: dict) -> dict:
-    """
-    Update workflow node inputs with parameter overrides.
-    
-    Searches through all nodes to find inputs that match parameter names
-    and updates them with override values.
-    
-    Common parameters and their typical node locations:
-    - prompt: CLIPTextEncode nodes, "text" input
-    - negative_prompt: CLIPTextEncode nodes (negative), "text" input
-    - width, height: EmptyLatentImage node, "width"/"height" inputs
-    - steps: KSampler node, "steps" input
-    - cfg: KSampler node, "cfg" input
-    - sampler_name: KSampler node, "sampler_name" input
-    - scheduler: KSampler node, "scheduler" input
-    - denoise: KSampler node, "denoise" input
-    - model: CheckpointLoaderSimple node, "ckpt_name" input
-    - tags, lyrics, seconds: Audio-specific nodes (varies by workflow)
-    """
-    # Map parameter names to node search patterns
-    param_mappings = {
-        "prompt": {"class_type": "CLIPTextEncode", "input_key": "text", "is_negative": False},
-        "negative_prompt": {"class_type": "CLIPTextEncode", "input_key": "text", "is_negative": True},
-        "steps": {"class_type": None, "input_key": "steps"},  # Works for KSampler and Flux2Scheduler
-        "cfg": {"class_type": None, "input_key": "cfg"},  # Works for KSampler and CFGGuider
-        "sampler_name": {"class_type": None, "input_key": "sampler_name"},  # Works for KSampler and KSamplerSelect
-        "scheduler": {"class_type": "KSampler", "input_key": "scheduler"},
-        "denoise": {"class_type": "KSampler", "input_key": "denoise"},
-        "width": {"class_type": "EmptyLatentImage", "input_key": "width"},
-        "height": {"class_type": "EmptyLatentImage", "input_key": "height"},
-        "model": {"class_type": "CheckpointLoaderSimple", "input_key": "ckpt_name"},
-        # Audio-specific (adjust based on actual node types in workflows)
-        "tags": {"class_type": None, "input_key": "tags"},  # Will search by input key
-        "lyrics": {"class_type": None, "input_key": "lyrics"},
-        "seconds": {"class_type": None, "input_key": "seconds"},
-        "lyrics_strength": {"class_type": None, "input_key": "lyrics_strength"},
-        # Flux-specific
-        "unet": {"class_type": "UNETLoader", "input_key": "unet_name"},
-        "clip": {"class_type": "CLIPLoader", "input_key": "clip_name"},
-        "vae": {"class_type": "VAELoader", "input_key": "vae_name"},
-        "image": {"class_type": "LoadImage", "input_key": "image"},
-    }
-    
-    for param_name, override_value in param_overrides.items():
-        if param_name not in param_mappings:
-            # Log warning but continue - maybe it's a valid but unknown param
-            logger.warning(f"Unknown parameter '{param_name}' in regenerate, skipping")
-            continue
-        
-        mapping = param_mappings[param_name]
-        target_class = mapping.get("class_type")
-        target_input = mapping["input_key"]
-        is_negative = mapping.get("is_negative", False)
-        
-        # Search workflow for matching nodes
-        updated = False
-        for node_id, node_data in workflow.items():
-            if not isinstance(node_data, dict):
-                continue
-            
-            # Match by class_type if specified
-            if target_class and node_data.get("class_type") != target_class:
-                continue
-            
-            # Check if this node has the target input
-            inputs = node_data.get("inputs", {})
-            if target_input not in inputs:
-                continue
-            
-            # Special handling for negative prompt
-            if param_name == "negative_prompt" and is_negative:
-                # Try to identify negative CLIPTextEncode node
-                # Common patterns: node title/name contains "negative", or it's connected differently
-                # For now, update all CLIPTextEncode nodes that aren't the main prompt
-                # This is heuristic - may need workflow-specific logic
-                if "negative" in str(node_data).lower() or "neg" in str(node_id).lower():
-                    inputs[target_input] = override_value
-                    updated = True
-            elif param_name == "prompt" and not is_negative:
-                # Update main prompt (not negative)
-                if "negative" not in str(node_data).lower() and "neg" not in str(node_id).lower():
-                    inputs[target_input] = override_value
-                    updated = True
-            else:
-                # Direct parameter update
-                inputs[target_input] = override_value
-                updated = True
-        
-        if not updated:
-            logger.warning(f"Could not find node to update parameter '{param_name}' in workflow")
-    
-    return workflow
-
-
-def _update_seed(workflow: dict, seed: Optional[int]) -> dict:
-    """
-    Update the seed in KSampler nodes.
-    
-    Args:
-        workflow: The workflow dict
-        seed: New seed value, or None to generate random, or -1 to keep original
-    
-    Returns:
-        Updated workflow
-    """
-    if seed == -1:
-        # Keep original seed - no changes needed
-        return workflow
-    
-    # Generate random seed if not specified
-    if seed is None:
-        seed = random.randint(0, 0xffffffffffffffff)
-    
-    # Find and update all KSampler and RandomNoise nodes
-    for node_id, node_data in workflow.items():
-        if not isinstance(node_data, dict):
-            continue
-        if node_data.get("class_type") == "KSampler":
-            inputs = node_data.get("inputs", {})
-            inputs["seed"] = seed
-        elif node_data.get("class_type") == "RandomNoise":
-            inputs = node_data.get("inputs", {})
-            inputs["noise_seed"] = seed
-    
-    return workflow
-
-
 def register_regenerate_tool(
     mcp: FastMCP,
     comfyui_client,
-    asset_registry
+    asset_registry,
+    workflow_manager
 ):
     """Register the regenerate tool for iterating on existing assets."""
     
@@ -406,19 +280,20 @@ def register_regenerate_tool(
             # Step 2: Deep copy workflow to avoid mutating the stored one
             workflow = copy.deepcopy(original_workflow)
             
-            # Step 3: Apply parameter overrides
-            if param_overrides:
-                workflow = _update_workflow_params(workflow, param_overrides)
+            # Step 3: Apply parameter overrides and seed using unified method
+            if param_overrides is None:
+                param_overrides = {}
+            workflow = workflow_manager.apply_parameter_overrides(
+                workflow,
+                asset.workflow_id,
+                param_overrides,
+                defaults_manager=None,  # No defaults for regeneration - use explicit overrides only
+                seed=seed,
+            )
             
-            # Step 4: Update seed
-            workflow = _update_seed(workflow, seed)
-            
-            # Step 5: Determine output preferences from original workflow
-            # Try to infer from workflow_id or use defaults
+            # Step 4: Determine output preferences from original workflow
             output_preferences = None
             if asset.workflow_id:
-                # Use workflow manager's output preference guessing if available
-                # For now, use common defaults
                 if "image" in asset.workflow_id.lower():
                     output_preferences = ("images", "image", "gifs", "gif")
                 elif "audio" in asset.workflow_id.lower() or "song" in asset.workflow_id.lower():
@@ -426,13 +301,13 @@ def register_regenerate_tool(
                 elif "video" in asset.workflow_id.lower():
                     output_preferences = ("videos", "video", "mp4", "mov", "webm")
             
-            # Step 6: Submit to ComfyUI
+            # Step 5: Submit to ComfyUI
             result = comfyui_client.run_custom_workflow(
                 workflow,
                 preferred_output_keys=output_preferences,
             )
             
-            # Step 7: Register and return new asset
+            # Step 6: Register and return new asset
             return register_and_build_response(
                 result,
                 asset.workflow_id,

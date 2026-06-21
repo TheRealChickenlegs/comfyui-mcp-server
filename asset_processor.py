@@ -17,16 +17,64 @@ except ImportError:
 
 logger = logging.getLogger("AssetProcessor")
 
+# Maximum response size for asset fetching (100 MB default, configurable via COMFYUI_MAX_RESPONSE_MB)
+MAX_ASSET_FETCH_SIZE = int(os.getenv("COMFYUI_MAX_RESPONSE_MB", "100")) * 1024 * 1024
+
 # Simple in-memory cache for processed previews
 _preview_cache: Dict[str, "EncodedImage"] = {}
 
 
-def fetch_asset_bytes(asset_url: str, timeout: int = 30) -> bytes:
-    """Fetch asset bytes from ComfyUI /view endpoint"""
+def fetch_asset_bytes(asset_url: str, timeout: int = 30, max_size: Optional[int] = None) -> bytes:
+    """Fetch asset bytes from ComfyUI /view endpoint with size limit.
+    
+    Args:
+        asset_url: URL to fetch asset from
+        timeout: Request timeout in seconds
+        max_size: Maximum response size in bytes (default: MAX_ASSET_FETCH_SIZE)
+        
+    Returns:
+        Asset bytes
+        
+    Raises:
+        requests.RequestException: On network errors
+        ValueError: If response exceeds max_size
+    """
+    if max_size is None:
+        max_size = MAX_ASSET_FETCH_SIZE
+    
+    # Set stream=True to iterate over response content
     try:
-        response = requests.get(asset_url, timeout=timeout)
+        response = requests.get(asset_url, timeout=timeout, stream=True)
         response.raise_for_status()
-        return response.content
+        
+        # Check Content-Length header first (fast path)
+        content_length = response.headers.get("Content-Length")
+        if content_length is not None:
+            try:
+                if int(content_length) > max_size:
+                    response.close()
+                    raise ValueError(
+                        f"Response size {content_length} bytes exceeds limit of {max_size} bytes"
+                    )
+            except ValueError:
+                # Invalid Content-Length, fall through to streaming check
+                pass
+        
+        # Stream response and accumulate with size limit
+        chunks = []
+        total_size = 0
+        for chunk in response.iter_content(chunk_size=8192):
+            if chunk:
+                total_size += len(chunk)
+                if total_size > max_size:
+                    response.close()
+                    raise ValueError(
+                        f"Response size {total_size} bytes exceeds limit of {max_size} bytes"
+                    )
+                chunks.append(chunk)
+        
+        response.close()
+        return b"".join(chunks)
     except requests.RequestException as e:
         logger.error(f"Failed to fetch asset from {asset_url}: {e}")
         raise

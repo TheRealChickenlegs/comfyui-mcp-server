@@ -1,3 +1,4 @@
+import os
 import requests
 import json
 import time
@@ -10,6 +11,9 @@ from asset_processor import get_image_metadata
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ComfyUIClient")
 
+# Maximum response size in bytes (100 MB default, configurable via COMFYUI_MAX_RESPONSE_MB)
+MAX_RESPONSE_SIZE = int(os.getenv("COMFYUI_MAX_RESPONSE_MB", "100")) * 1024 * 1024
+
 class ComfyUIClient:
     def __init__(self, base_url, public_url=None):
         self.base_url = base_url
@@ -18,6 +22,63 @@ class ComfyUIClient:
         self.available_unets = self._get_models_for_node("UNETLoader", "unet_name")
         self.available_clips = self._get_models_for_node("CLIPLoader", "clip_name")
         self.available_vaes = self._get_models_for_node("VAELoader", "vae_name")
+    
+    def _safe_request(self, method: str, url: str, **kwargs) -> requests.Response:
+        """Make HTTP request with response size limit to prevent OOM.
+        
+        Streams response and checks Content-Length header first, then accumulates
+        chunks while enforcing MAX_RESPONSE_SIZE limit.
+        
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            url: Full URL to request
+            **kwargs: Additional arguments passed to requests.request
+            
+        Returns:
+            Response object with content fully loaded (up to size limit)
+            
+        Raises:
+            requests.RequestException: On network errors
+            ValueError: If response exceeds MAX_RESPONSE_SIZE
+        """
+        # Set stream=True to iterate over response content
+        kwargs.setdefault("stream", True)
+        # Ensure timeout is set
+        kwargs.setdefault("timeout", 30)
+        
+        response = requests.request(method, url, **kwargs)
+        response.raise_for_status()
+        
+        # Check Content-Length header first (fast path)
+        content_length = response.headers.get("Content-Length")
+        if content_length is not None:
+            try:
+                if int(content_length) > MAX_RESPONSE_SIZE:
+                    response.close()
+                    raise ValueError(
+                        f"Response size {content_length} bytes exceeds limit of {MAX_RESPONSE_SIZE} bytes"
+                    )
+            except ValueError:
+                # Invalid Content-Length, fall through to streaming check
+                pass
+        
+        # Stream response and accumulate with size limit
+        chunks = []
+        total_size = 0
+        for chunk in response.iter_content(chunk_size=8192):
+            if chunk:
+                total_size += len(chunk)
+                if total_size > MAX_RESPONSE_SIZE:
+                    response.close()
+                    raise ValueError(
+                        f"Response size {total_size} bytes exceeds limit of {MAX_RESPONSE_SIZE} bytes"
+                    )
+                chunks.append(chunk)
+        
+        # Replace response.content with accumulated content
+        response._content = b"".join(chunks)
+        response.close()
+        return response
     
     def refresh_models(self):
         """Re-fetch available models and update available_models list."""
@@ -29,7 +90,7 @@ class ComfyUIClient:
     def _get_models_for_node(self, node_type: str, input_key: str) -> list:
         """Fetch list of available models for a given node type from ComfyUI"""
         try:
-            response = requests.get(f"{self.base_url}/object_info/{node_type}", timeout=10)
+            response = self._safe_request("GET", f"{self.base_url}/object_info/{node_type}", timeout=10)
             if response.status_code != 200:
                 logger.warning(f"Failed to fetch {node_type} model list")
                 return []
@@ -55,11 +116,14 @@ class ComfyUIClient:
         except requests.RequestException as e:
             logger.warning(f"Error fetching {node_type} models: {e}")
             return []
+        except ValueError as e:
+            logger.warning(f"Response size limit exceeded for {node_type} models: {e}")
+            return []
 
     def _get_available_models(self):
         """Fetch list of available checkpoint models from ComfyUI"""
         try:
-            response = requests.get(f"{self.base_url}/object_info/CheckpointLoaderSimple", timeout=10)
+            response = self._safe_request("GET", f"{self.base_url}/object_info/CheckpointLoaderSimple", timeout=10)
             if response.status_code != 200:
                 logger.warning("Failed to fetch model list; using default handling")
                 return []
@@ -90,6 +154,9 @@ class ComfyUIClient:
                 return []
         except requests.RequestException as e:
             logger.warning(f"Error fetching models: {e}")
+            return []
+        except ValueError as e:
+            logger.warning(f"Response size limit exceeded for model list: {e}")
             return []
 
     def run_custom_workflow(self, workflow: Dict[str, Any], preferred_output_keys: Sequence[str] | None = None, max_attempts: int = 120):
@@ -200,7 +267,7 @@ class ComfyUIClient:
         
         # Try to fetch headers to get size (non-blocking, best effort)
         try:
-            response = requests.head(asset_url, timeout=5)
+            response = self._safe_request("HEAD", asset_url, timeout=5)
             if response.status_code == 200:
                 content_length = response.headers.get("Content-Length")
                 if content_length:
@@ -216,7 +283,7 @@ class ComfyUIClient:
         if metadata["mime_type"] and metadata["mime_type"].startswith("image/") and (metadata["width"] is None or metadata["height"] is None):
             try:
                 # Fetch image bytes to extract dimensions
-                img_response = requests.get(asset_url, timeout=10)
+                img_response = self._safe_request("GET", asset_url, timeout=10)
                 if img_response.status_code == 200:
                     image_bytes = img_response.content
                     # Update bytes_size if we got it from the full response
@@ -234,7 +301,7 @@ class ComfyUIClient:
 
     def _queue_workflow(self, workflow: Dict[str, Any]):
         logger.info("Submitting workflow to ComfyUI...")
-        response = requests.post(f"{self.base_url}/prompt", json={"prompt": workflow}, timeout=30)
+        response = self._safe_request("POST", f"{self.base_url}/prompt", json={"prompt": workflow}, timeout=30)
         if response.status_code != 200:
             raise Exception(f"Failed to queue workflow: {response.status_code} - {response.text}")
         try:
@@ -357,7 +424,7 @@ class ComfyUIClient:
         for attempt in range(max_attempts):
             try:
                 # Try both the specific prompt_id endpoint and the full history endpoint
-                response = requests.get(f"{self.base_url}/history/{prompt_id}", timeout=10)
+                response = self._safe_request("GET", f"{self.base_url}/history/{prompt_id}", timeout=10)
                 # If that doesn't work, we can also try: f"{self.base_url}/history"
                 if response.status_code != 200:
                     logger.warning("History endpoint returned %s on attempt %s", response.status_code, attempt + 1)
@@ -419,7 +486,7 @@ class ComfyUIClient:
                         logger.info("Workflow execution succeeded, waiting for outputs to be available...")
                         time.sleep(3)
                         try:
-                            full_history_response = requests.get(f"{self.base_url}/history", timeout=10)
+                            full_history_response = self._safe_request("GET", f"{self.base_url}/history", timeout=10)
                             if full_history_response.status_code == 200:
                                 full_history = full_history_response.json()
                                 if prompt_id in full_history:
@@ -452,7 +519,7 @@ class ComfyUIClient:
                         logger.warning("Outputs empty despite execution_success. Trying full history...")
                         time.sleep(2)
                         try:
-                            full_history_response = requests.get(f"{self.base_url}/history", timeout=10)
+                            full_history_response = self._safe_request("GET", f"{self.base_url}/history", timeout=10)
                             if full_history_response.status_code == 200:
                                 full_history = full_history_response.json()
                                 if prompt_id in full_history:
@@ -575,15 +642,19 @@ class ComfyUIClient:
         Returns the full /queue endpoint response.
         """
         try:
-            response = requests.get(f"{self.base_url}/queue", timeout=10)
+            response = self._safe_request("GET", f"{self.base_url}/queue", timeout=10)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
             logger.error(f"Failed to get queue status: {e}")
             raise Exception(f"Failed to get queue status: {e}")
+        except ValueError as e:
+            logger.error(f"Response size limit exceeded for queue: {e}")
+            raise Exception(f"Failed to get queue status: {e}")
     
     def get_history(self, prompt_id: Optional[str] = None) -> Dict[str, Any]:
         """Get history from ComfyUI.
+        
         
         Args:
             prompt_id: Optional specific prompt ID. If None, returns full history.
@@ -596,11 +667,14 @@ class ComfyUIClient:
                 url = f"{self.base_url}/history/{prompt_id}"
             else:
                 url = f"{self.base_url}/history"
-            response = requests.get(url, timeout=10)
+            response = self._safe_request("GET", url, timeout=10)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
             logger.error(f"Failed to get history: {e}")
+            raise Exception(f"Failed to get history: {e}")
+        except ValueError as e:
+            logger.error(f"Response size limit exceeded for history: {e}")
             raise Exception(f"Failed to get history: {e}")
     
     def cancel_prompt(self, prompt_id: str) -> Dict[str, Any]:
@@ -613,7 +687,8 @@ class ComfyUIClient:
             Response from ComfyUI cancel endpoint.
         """
         try:
-            response = requests.post(
+            response = self._safe_request(
+                "POST",
                 f"{self.base_url}/queue",
                 json={"delete": [prompt_id]},
                 timeout=10
@@ -622,4 +697,7 @@ class ComfyUIClient:
             return response.json()
         except requests.RequestException as e:
             logger.error(f"Failed to cancel prompt {prompt_id}: {e}")
+            raise Exception(f"Failed to cancel prompt: {e}")
+        except ValueError as e:
+            logger.error(f"Response size limit exceeded for cancel: {e}")
             raise Exception(f"Failed to cancel prompt: {e}")

@@ -206,7 +206,7 @@ register_configuration_tools(mcp, comfyui_client, defaults_manager)
 register_workflow_tools(mcp, workflow_manager, comfyui_client, defaults_manager, asset_registry)
 register_asset_tools(mcp, asset_registry)
 register_workflow_generation_tools(mcp, workflow_manager, comfyui_client, defaults_manager, asset_registry)
-register_regenerate_tool(mcp, comfyui_client, asset_registry)
+register_regenerate_tool(mcp, comfyui_client, asset_registry, workflow_manager)
 register_job_tools(mcp, comfyui_client, asset_registry)
 # Always register publish tools (unconditional)
 if publish_manager:

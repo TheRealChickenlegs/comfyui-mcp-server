@@ -267,6 +267,129 @@ class WorkflowManager:
 
         return workflow
 
+    def apply_parameter_overrides(
+        self,
+        workflow: Dict[str, Any],
+        workflow_id: str,
+        param_overrides: Dict[str, Any],
+        defaults_manager: Optional["DefaultsManager"] = None,
+        seed: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Apply parameter overrides and seed to a workflow.
+
+        This is the unified method for applying parameter overrides, used by both
+        run_workflow and regenerate tools.
+
+        Args:
+            workflow: The workflow dict to modify (will be modified in place)
+            workflow_id: Workflow ID for loading metadata
+            param_overrides: Dict of parameter name -> value overrides
+            defaults_manager: Optional DefaultsManager for default values
+            seed: Seed value. -1 = keep original, None = generate new, N = explicit value
+
+        Returns:
+            Modified workflow with __override_report__ key containing applied/dropped info
+        """
+        from managers.defaults_manager import DefaultsManager
+
+        workflow_path = self._safe_workflow_path(workflow_id)
+        if not workflow_path:
+            raise ValueError(f"Workflow {workflow_id} not found")
+
+        metadata = self._load_workflow_metadata(workflow_path)
+        override_mappings = metadata.get("override_mappings", {})
+        constraints = metadata.get("constraints", {})
+
+        # If no metadata, try to infer from PARAM_ placeholders
+        if not override_mappings:
+            parameters = self._extract_parameters(workflow)
+            for param_name, param in parameters.items():
+                if param_name not in override_mappings:
+                    override_mappings[param_name] = param.bindings
+
+        # Determine namespace for defaults
+        namespace = self._determine_namespace(workflow_id)
+
+        # Track which overrides were applied vs dropped
+        overrides_applied = {}
+        overrides_dropped = {}
+
+        # Extract parameters once for type coercion
+        parameters = self._extract_parameters(workflow)
+
+        # Apply parameter overrides with constraints
+        for param_name, value in param_overrides.items():
+            if param_name not in override_mappings:
+                logger.warning(f"Override '{param_name}' has no matching PARAM_ placeholder in {workflow_id}, skipping")
+                overrides_dropped[param_name] = f"No matching PARAM_{param_name.upper()} placeholder in workflow"
+                continue
+
+            # Apply constraints if defined
+            if param_name in constraints:
+                constraint = constraints[param_name]
+                if "enum" in constraint and value not in constraint["enum"]:
+                    raise ValueError(f"Value '{value}' for '{param_name}' not in allowed enum: {constraint['enum']}")
+                if "min" in constraint and value < constraint["min"]:
+                    raise ValueError(f"Value '{value}' for '{param_name}' below minimum: {constraint['min']}")
+                if "max" in constraint and value > constraint["max"]:
+                    raise ValueError(f"Value '{value}' for '{param_name}' above maximum: {constraint['max']}")
+
+            # Get parameter type from extracted parameters
+            if param_name in parameters:
+                param = parameters[param_name]
+                coerced_value = self._coerce_value(value, param.annotation)
+            else:
+                coerced_value = value
+
+            # Apply to all bindings
+            for node_id, input_name in override_mappings[param_name]:
+                if node_id in workflow and "inputs" in workflow[node_id]:
+                    workflow[node_id]["inputs"][input_name] = coerced_value
+            overrides_applied[param_name] = value
+
+        # Handle seed separately
+        if seed is not None:
+            if seed == -1:
+                # Keep original seed - don't modify
+                overrides_applied["seed"] = "keep_original"
+            else:
+                # Generate new seed if None, or use explicit value
+                if seed is None:
+                    import random
+                    seed = random.randint(0, 2**32 - 1)
+                # Find and update all KSampler and RandomNoise nodes
+                for node_id, node_data in workflow.items():
+                    if not isinstance(node_data, dict):
+                        continue
+                    if node_data.get("class_type") == "KSampler":
+                        inputs = node_data.get("inputs", {})
+                        inputs["seed"] = seed
+                    elif node_data.get("class_type") == "RandomNoise":
+                        inputs = node_data.get("inputs", {})
+                        inputs["noise_seed"] = seed
+                overrides_applied["seed"] = seed
+
+        # Apply defaults for parameters not in overrides (only if no seed override was explicitly provided)
+        for param_name, param in parameters.items():
+            if param_name not in param_overrides and param_name != "seed" and not param.required:
+                if param_name == "seed" and param.annotation is int:
+                    # This case is handled above
+                    pass
+                elif defaults_manager:
+                    default_value = defaults_manager.get_default(namespace, param.name, None)
+                    if default_value is not None:
+                        for node_id, input_name in param.bindings:
+                            if node_id in workflow and "inputs" in workflow[node_id]:
+                                workflow[node_id]["inputs"][input_name] = default_value
+
+        # Store the report on the workflow dict so callers can access it
+        workflow["__override_report__"] = {
+            "overrides_applied": overrides_applied,
+            "overrides_dropped": overrides_dropped,
+        }
+
+        return workflow
+
     def _refresh_definition_if_stale(self, definition: WorkflowToolDefinition) -> None:
         """Reload a tool definition's template from disk if the file has been modified."""
         workflow_path = self._safe_workflow_path(definition.workflow_id)

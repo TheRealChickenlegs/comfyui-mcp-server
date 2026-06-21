@@ -61,10 +61,13 @@ def register_workflow_tools(
         if not workflow:
             return {"error": f"Workflow '{workflow_id}' not found"}
         
+        # Extract seed from overrides if provided (handled separately by unified method)
+        seed = overrides.pop("seed", None)
+        
         try:
-            # Apply overrides with constraints
-            workflow = workflow_manager.apply_workflow_overrides(
-                workflow, workflow_id, overrides, defaults_manager
+            # Apply overrides with constraints using unified method
+            workflow = workflow_manager.apply_parameter_overrides(
+                workflow, workflow_id, overrides, defaults_manager, seed=seed
             )
 
             # Extract and remove override report before submitting to ComfyUI
