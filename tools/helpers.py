@@ -10,15 +10,14 @@ logger = logging.getLogger("MCP_Server")
 
 
 def build_markdown_response(response_data: Dict[str, Any], tool_name: Optional[str] = None) -> str:
-    """Build a Markdown string suitable for Open WebUI rendering.
+    """Build a Markdown string for OWUI to render the image inline.
 
-    The primary text content contains the image embed as Markdown so OWUI
-    renders the image inline.  The JSON metadata dict no longer appears as
-    visible text in the chat; metadata is presented as a compact line below
-    the image.
+    Formats the result as:
+        ### {Tool Name}
 
-    When the response is an error or status handle, falls back to JSON so
-    the LLM still receives structured data.
+        ![image]({asset_url})
+
+    Falls back to JSON for error or running-job responses.
     """
     if "error" in response_data:
         return json.dumps(response_data)
@@ -28,37 +27,13 @@ def build_markdown_response(response_data: Dict[str, Any], tool_name: Optional[s
 
     image_url = response_data.get("asset_url") or response_data.get("image_url") or ""
     tool_label = (tool_name or response_data.get("tool", "")).replace("_", " ").title()
-    width = response_data.get("width")
-    height = response_data.get("height")
-    mime = response_data.get("mime_type", "")
-    asset_id = response_data.get("asset_id", "")
-    prompt_id = response_data.get("prompt_id", "")
 
     lines: list[str] = []
-
     if tool_label:
-        lines.append(f"**{tool_label}**")
-
+        lines.append(f"### {tool_label}")
     if image_url:
         lines.append("")
-        lines.append(f"![Generated Image]({image_url})")
-
-    parts: list[str] = []
-    if width and height:
-        parts.append(f"{width}×{height}px")
-    if mime:
-        short_mime = mime.split("/")[-1]
-        parts.append(short_mime)
-    if asset_id:
-        parts.append(f"ID: `{asset_id}`")
-    if parts:
-        if image_url or tool_label:
-            lines.append("")
-        lines.append("*" + " | ".join(parts) + "*")
-
-    if prompt_id:
-        lines.append(f"")
-        lines.append(f"*Prompt: `{prompt_id}`*")
+        lines.append(f"![image]({image_url})")
 
     if not lines:
         return json.dumps(response_data)

@@ -3,6 +3,7 @@
 import copy
 import inspect
 import logging
+import os
 import random
 from typing import Any, Dict, List, Optional, Union
 
@@ -12,6 +13,8 @@ from managers.workflow_manager import AUDIO_OUTPUT_KEYS, VIDEO_OUTPUT_KEYS
 from models.workflow import WorkflowToolDefinition
 from asset_processor import fetch_asset_bytes
 from tools.helpers import build_markdown_response, register_and_build_response
+
+_claude_mode = os.getenv("CLAUDE_CODE", "false").strip().lower() in ("1", "true", "yes")
 
 logger = logging.getLogger("MCP_Server")
 
@@ -119,20 +122,22 @@ def register_workflow_generation_tools(
                     session_id=session_id
                 )
 
-                # Primary response: Markdown text with image embed (for OWUI rendering).
-                # Secondary: MCPImage content type for clients that support it (Claude Desktop).
+                # Default: return a plain Markdown string so OWUI renders the image inline.
+                # When CLAUDE_CODE=true, also include an MCPImage content item for clients
+                # that natively support the image content type (Claude Desktop, Cursor).
                 markdown_text = build_markdown_response(response_data, tool_name=definition.tool_name)
                 image_url = response_data.get("asset_url") or response_data.get("image_url")
 
-                try:
-                    if image_url:
-                        image_bytes = fetch_asset_bytes(image_url, timeout=5)
-                        return [
-                            markdown_text,
-                            MCPImage(data=image_bytes, format=response_data.get("mime_type", "image/png").split("/")[-1])
-                        ]
-                except Exception as e:
-                    logger.warning(f"Failed to create Image content for tool result: {e}")
+                if _claude_mode:
+                    try:
+                        if image_url:
+                            image_bytes = fetch_asset_bytes(image_url, timeout=5)
+                            return [
+                                markdown_text,
+                                MCPImage(data=image_bytes, format=response_data.get("mime_type", "image/png").split("/")[-1])
+                            ]
+                    except Exception as e:
+                        logger.warning(f"Failed to create Image content for tool result: {e}")
 
                 return markdown_text
                 
