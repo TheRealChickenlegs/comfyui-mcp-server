@@ -195,16 +195,6 @@ mcp = FastMCP(
     stateless_http=False
 )
 
-# Health check endpoint for Docker container orchestration
-@mcp.custom_route("/health", methods=["GET"])
-async def health_route(request):
-    from starlette.responses import JSONResponse
-    return JSONResponse({
-        "status": "ok",
-        "service": "comfyui-mcp-server",
-        "comfyui_url": COMFYUI_URL,
-    })
-
 # Register all MCP tools
 register_configuration_tools(mcp, comfyui_client, defaults_manager)
 register_workflow_tools(mcp, workflow_manager, comfyui_client, defaults_manager, asset_registry)
