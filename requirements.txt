@@ -5,6 +5,9 @@ mcp>=0.9.0
 # Image processing (required for view_image tool)
 Pillow>=10.0.0
 
+# REST API (required for OpenAPI / Open Web UI integration)
+fastapi>=0.100.0
+
 # Testing (optional, for development)
 # Note: pytest-asyncio only needed if you add async tests
 pytest>=7.4.0

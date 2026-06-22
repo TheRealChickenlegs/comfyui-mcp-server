@@ -1,10 +1,8 @@
 """FastAPI REST API for ComfyUI — consumed by Open WebUI's OpenAPI tool import."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from tools.helpers import build_markdown_response, register_and_build_response
@@ -21,70 +19,20 @@ class GenerateRequest(BaseModel):
     params: Dict[str, Any] = Field(default_factory=dict, description="Workflow parameters (prompt, steps, width, height, …)")
 
 
-class GenerateResponse(BaseModel):
-    asset_id: str
-    asset_url: str
-    image_url: str
-    mime_type: str
-    width: Optional[int] = None
-    height: Optional[int] = None
-    bytes_size: int = 0
-    prompt_id: str
-    workflow_id: str
-    markdown: str = Field(description="Markdown with ![image](url) for LLM to embed in chat")
-
-
-class RunWorkflowResponse(BaseModel):
-    asset_id: str
-    asset_url: str
-    image_url: str
-    mime_type: str
-    width: Optional[int] = None
-    height: Optional[int] = None
-    bytes_size: int = 0
-    prompt_id: str
-    workflow_id: str
-    markdown: str
-
-
 class RegenerateRequest(BaseModel):
     asset_id: str = Field(description="Asset ID to regenerate")
     seed: Optional[int] = Field(None, description="New seed (None=random, -1=keep original)")
     param_overrides: Optional[Dict[str, Any]] = Field(None, description="Parameter overrides")
 
 
-class AssetOut(BaseModel):
-    asset_id: str
-    asset_url: str
-    filename: str
-    mime_type: str
-    width: Optional[int] = None
-    height: Optional[int] = None
-    bytes_size: int = 0
-    workflow_id: str
-    prompt_id: str
-    created_at: str
-
-
-class WorkflowOut(BaseModel):
-    id: str
-    name: str
-    description: str
-    parameters: List[Dict[str, Any]] = []
-
-
-class JobStatus(BaseModel):
-    status: str
-    prompt_id: str
-    message: str
-
-
 # ---------------------------------------------------------------------------
-# App factory
+# App factory  (fastapi imported lazily so --stdio mode doesn't require it)
 # ---------------------------------------------------------------------------
 
-def create_rest_api(comfyui_client, workflow_manager, defaults_manager, asset_registry) -> FastAPI:
+def create_rest_api(comfyui_client, workflow_manager, defaults_manager, asset_registry):
     """Create a configured FastAPI app with all ComfyUI REST endpoints."""
+    from fastapi import FastAPI, HTTPException
+    from fastapi.middleware.cors import CORSMiddleware
 
     app = FastAPI(
         title="ComfyUI MCP — REST API",
