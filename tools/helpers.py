@@ -1,5 +1,6 @@
 """Shared helper functions for tool implementations"""
 
+import json
 import logging
 from typing import Any, Dict, Optional
 
@@ -113,3 +114,36 @@ def register_and_build_response(
         response_data["image_mime_type"] = result.get("image_mime_type", "image/png")
     
     return response_data
+
+
+def build_markdown_response(response_data: Dict[str, Any], tool_name: Optional[str] = None) -> str:
+    """Build a Markdown string for OWUI to render the image inline.
+
+    Formats the result as::
+
+        ### {Tool Name}
+
+        ![image]({asset_url})
+
+    Falls back to JSON for error or running-job responses.
+    """
+    if "error" in response_data:
+        return json.dumps(response_data)
+
+    if response_data.get("status") == "running":
+        return json.dumps(response_data)
+
+    image_url = response_data.get("asset_url") or response_data.get("image_url") or ""
+    tool_label = (tool_name or response_data.get("tool", "")).replace("_", " ").title()
+
+    lines: list[str] = []
+    if tool_label:
+        lines.append(f"### {tool_label}")
+    if image_url:
+        lines.append("")
+        lines.append(f"![image]({image_url})")
+
+    if not lines:
+        return json.dumps(response_data)
+
+    return "\n".join(lines).strip()

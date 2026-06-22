@@ -211,9 +211,9 @@ else:
     logger.error("Publish manager not available - publish tools will not be registered")
 
 if __name__ == "__main__":
-    # Check if running as MCP command (stdio) or standalone (streamable-http)
+    # Check if running as MCP command (stdio) or standalone (streamable-http + REST)
     # When run as command by MCP client (like Cursor), use stdio transport
-    # When run standalone, use streamable-http for HTTP access
+    # When run standalone, use streamable-http with FastAPI REST API mounted alongside
     if len(sys.argv) > 1 and sys.argv[1] == "--stdio":
         print("\n" + "=" * 70)
         print("[+] Server Ready".center(70))
@@ -228,16 +228,26 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             print("\n[*] Server stopped.")
     else:
+        from rest_api import create_rest_api
+        import uvicorn
+
         print("\n" + "=" * 70)
         print("[+] Server Ready".center(70))
         print("=" * 70)
-        print(f"  Transport: streamable-http")
-        print(f"  Endpoint: http://{MCP_SERVER_HOST}:{MCP_SERVER_PORT}/mcp")
+        print(f"  Transport: streamable-http + REST API")
+        print(f"  MCP endpoint:   http://{MCP_SERVER_HOST}:{MCP_SERVER_PORT}/mcp")
+        print(f"  REST API:       http://{MCP_SERVER_HOST}:{MCP_SERVER_PORT}/api/v1")
+        print(f"  OpenAPI spec:   http://{MCP_SERVER_HOST}:{MCP_SERVER_PORT}/api/v1/openapi.json")
         print(f"[+] ComfyUI verified at: {COMFYUI_URL}")
         print("=" * 70 + "\n")
-        logger.info(f"Starting MCP server with streamable-http transport on http://{MCP_SERVER_HOST}:{MCP_SERVER_PORT}/mcp")
+        logger.info(f"Starting combined MCP+REST server on http://{MCP_SERVER_HOST}:{MCP_SERVER_PORT}")
         logger.info(f"ComfyUI verified at: {COMFYUI_URL}")
+
+        rest_app = create_rest_api(comfyui_client, workflow_manager, defaults_manager, asset_registry)
+        mcp_app = mcp.streamable_http_app()
+        mcp_app.mount("/api/v1", rest_app)
+
         try:
-            mcp.run(transport="streamable-http")
+            uvicorn.run(mcp_app, host=MCP_SERVER_HOST, port=MCP_SERVER_PORT, log_level="info")
         except KeyboardInterrupt:
             print("\n[*] Server stopped.")
