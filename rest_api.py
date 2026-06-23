@@ -112,12 +112,15 @@ def create_rest_api(comfyui_client, workflow_manager, defaults_manager, asset_re
         operation_id="generate",
     )
     async def generate(body: GenerateRequest):
-        definition = workflow_manager.get_tool_definition(body.workflow_id)
+        definition = next(
+            (td for td in (workflow_manager.tool_definitions or []) if td.workflow_id == body.workflow_id),
+            None,
+        )
         if not definition:
+            avail = [td.workflow_id for td in (workflow_manager.tool_definitions or [])]
             raise HTTPException(
                 status_code=404,
-                detail=f"No auto-registered workflow '{body.workflow_id}'. "
-                       f"Available: {[t.workflow_id for t in (workflow_manager.tool_definitions or [])]}",
+                detail=f"No auto-registered workflow '{body.workflow_id}'. Available: {avail}",
             )
 
         # Merge defaults for any missing params
