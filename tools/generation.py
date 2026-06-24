@@ -116,7 +116,12 @@ def register_workflow_generation_tools(
                     return_inline_preview=return_inline_preview,
                     session_id=session_id
                 )
-                return build_markdown_response(response_data, tool_name=definition.tool_name)
+                markdown = build_markdown_response(response_data, tool_name=definition.tool_name)
+                thumb_bytes = response_data.get("_inline_raw_bytes")
+                if thumb_bytes:
+                    from mcp.server.fastmcp.utilities.types import Image as MCPImage
+                    return [MCPImage(data=thumb_bytes, format="webp"), markdown]
+                return markdown
                 
             except Exception as exc:
                 error_str = str(exc).lower()

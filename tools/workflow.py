@@ -92,7 +92,12 @@ def register_workflow_tools(
                 response["overrides_applied"] = override_report["overrides_applied"]
                 response["overrides_dropped"] = override_report["overrides_dropped"]
 
-            return build_markdown_response(response, tool_name=None)
+            markdown = build_markdown_response(response, tool_name=None)
+            thumb_bytes = response.get("_inline_raw_bytes")
+            if thumb_bytes:
+                from mcp.server.fastmcp.utilities.types import Image as MCPImage
+                return [MCPImage(data=thumb_bytes, format="webp"), markdown]
+            return markdown
         except Exception as exc:
             logger.exception("Workflow '%s' failed", workflow_id)
             return {"error": str(exc)}

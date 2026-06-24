@@ -104,6 +104,8 @@ def register_and_build_response(
                 # Convert to data URI format for backward compatibility
                 response_data["inline_preview_base64"] = f"data:{encoded.mime_type};base64,{encoded.b64}"
                 response_data["inline_preview_mime_type"] = encoded.mime_type
+                # Stash raw bytes so callers can produce an MCP ImageContent block
+                response_data["_inline_raw_bytes"] = encoded.raw_bytes
         except Exception as e:
             logger.warning(f"Failed to generate inline preview: {e}")
             # Don't fail the request if preview generation fails
