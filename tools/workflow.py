@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from mcp.server.fastmcp import FastMCP
-from tools.helpers import register_and_build_response
+from tools.helpers import build_markdown_response, register_and_build_response
 
 logger = logging.getLogger("MCP_Server")
 
@@ -37,8 +37,8 @@ def register_workflow_tools(
         workflow_id: str,
         overrides: Optional[Dict[str, Any]] = None,
         options: Optional[Dict[str, Any]] = None,
-        return_inline_preview: bool = False
-    ) -> dict:
+        return_inline_preview: bool = True
+    ) -> str:
         """Run a saved ComfyUI workflow with constrained parameter overrides.
         
         Args:
@@ -92,7 +92,7 @@ def register_workflow_tools(
                 response["overrides_applied"] = override_report["overrides_applied"]
                 response["overrides_dropped"] = override_report["overrides_dropped"]
 
-            return response
+            return build_markdown_response(response, tool_name=None)
         except Exception as exc:
             logger.exception("Workflow '%s' failed", workflow_id)
             return {"error": str(exc)}

@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 from mcp.server.fastmcp import FastMCP
 from managers.workflow_manager import AUDIO_OUTPUT_KEYS, VIDEO_OUTPUT_KEYS
 from models.workflow import WorkflowToolDefinition
-from tools.helpers import register_and_build_response
+from tools.helpers import build_markdown_response, register_and_build_response
 
 logger = logging.getLogger("MCP_Server")
 
@@ -26,7 +26,7 @@ def register_workflow_generation_tools(
     def _register_workflow_tool(definition: WorkflowToolDefinition):
         def _tool_impl(*args, **kwargs):
             # Extract return_inline_preview if present (not a workflow parameter)
-            return_inline_preview = kwargs.pop("return_inline_preview", False)
+            return_inline_preview = kwargs.pop("return_inline_preview", True)
             # Session tracking can be added via request context in the future
             session_id = None
             
@@ -108,7 +108,7 @@ def register_workflow_generation_tools(
                 )
                 
                 # Register asset and build response
-                return register_and_build_response(
+                response_data = register_and_build_response(
                     result,
                     definition.workflow_id,
                     asset_registry,
@@ -116,6 +116,7 @@ def register_workflow_generation_tools(
                     return_inline_preview=return_inline_preview,
                     session_id=session_id
                 )
+                return build_markdown_response(response_data, tool_name=definition.tool_name)
                 
             except Exception as exc:
                 error_str = str(exc).lower()
@@ -181,8 +182,8 @@ def register_workflow_generation_tools(
         
         # Combine: required parameters first, then optional
         parameters = required_params + optional_params
-        annotations["return"] = dict
-        _tool_impl.__signature__ = inspect.Signature(parameters, return_annotation=dict)
+        annotations["return"] = str
+        _tool_impl.__signature__ = inspect.Signature(parameters, return_annotation=str)
         _tool_impl.__annotations__ = annotations
         _tool_impl.__name__ = f"tool_{definition.tool_name}"
         _tool_impl.__doc__ = definition.description

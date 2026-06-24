@@ -133,7 +133,12 @@ def build_markdown_response(response_data: Dict[str, Any], tool_name: Optional[s
     if response_data.get("status") == "running":
         return json.dumps(response_data)
 
-    image_url = response_data.get("asset_url") or response_data.get("image_url") or ""
+    image_url = (
+        response_data.get("inline_preview_base64")
+        or response_data.get("asset_url")
+        or response_data.get("image_url")
+        or ""
+    )
     tool_label = (tool_name or response_data.get("tool", "")).replace("_", " ").title()
 
     lines: list[str] = []
