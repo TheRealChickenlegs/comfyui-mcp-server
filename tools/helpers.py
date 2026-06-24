@@ -89,15 +89,24 @@ def register_and_build_response(
             # Only generate preview for images
             supported_types = ("image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif")
             if asset_record.mime_type in supported_types:
-                # Build preview URL — prefer internal base for container reachability
-                if preview_fetch_base_url:
-                    preview_url = asset_record.get_asset_url(preview_fetch_base_url.rstrip("/"))
-                elif asset_url:
-                    preview_url = asset_url
-                else:
-                    preview_url = asset_record.get_asset_url(asset_registry.comfyui_base_url)
-                # Use new encoding function with conservative budget
-                image_bytes = fetch_asset_bytes(preview_url)
+                # Try reading from local disk first (shared volume)
+                import os
+                image_bytes = None
+                output_root = os.environ.get("COMFYUI_OUTPUT_ROOT")
+                if output_root:
+                    from pathlib import Path
+                    local_path = Path(output_root) / asset_record.subfolder / asset_record.filename
+                    if local_path.is_file():
+                        image_bytes = local_path.read_bytes()
+                # Fall back to HTTP fetch if not available on disk
+                if image_bytes is None:
+                    if preview_fetch_base_url:
+                        preview_url = asset_record.get_asset_url(preview_fetch_base_url.rstrip("/"))
+                    elif asset_url:
+                        preview_url = asset_url
+                    else:
+                        preview_url = asset_record.get_asset_url(asset_registry.comfyui_base_url)
+                    image_bytes = fetch_asset_bytes(preview_url)
                 cache_key = get_cache_key(asset_record.asset_id, 256, 70)
                 encoded = encode_preview_for_mcp(
                     image_bytes,
@@ -146,6 +155,20 @@ def build_markdown_response(response_data: Dict[str, Any], tool_name: Optional[s
         or response_data.get("image_url")
         or ""
     )
+    # Replace ComfyUI /view URLs with clean file URL served by the MCP server
+    if image_url and "/view?" in image_url and not image_url.startswith("data:"):
+        import os
+        import urllib.parse
+        parsed = urllib.parse.urlparse(image_url)
+        params = urllib.parse.parse_qs(parsed.query)
+        filename = params.get("filename", [""])[0]
+        subfolder = params.get("subfolder", [""])[0]
+        if filename:
+            mcp_url = os.environ.get("PUBLIC_MCP_URL", "http://localhost:3333")
+            if subfolder:
+                image_url = f"{mcp_url}/api/v1/assets/file/{filename}?subfolder={subfolder}"
+            else:
+                image_url = f"{mcp_url}/api/v1/assets/file/{filename}"
     tool_label = (tool_name or response_data.get("tool", "")).replace("_", " ").title()
 
     lines: list[str] = []

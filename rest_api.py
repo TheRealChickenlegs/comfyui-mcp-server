@@ -317,4 +317,32 @@ def create_rest_api(comfyui_client, workflow_manager, defaults_manager, asset_re
     async def health():
         return {"status": "ok", "service": "comfyui-mcp-server"}
 
+    # -----------------------------------------------------------------------
+    # File serving from shared output volume
+    # -----------------------------------------------------------------------
+
+    @app.get(
+        "/assets/file/{filename}",
+        summary="Serve a generated asset file from the shared output volume",
+        operation_id="get_asset_file",
+    )
+    async def get_asset_file(filename: str, subfolder: str = ""):
+        import os
+        from pathlib import Path
+        from fastapi.responses import FileResponse
+        import mimetypes
+
+        output_root = os.environ.get("COMFYUI_OUTPUT_ROOT")
+        if not output_root:
+            raise HTTPException(
+                503,
+                detail="COMFYUI_OUTPUT_ROOT not set — cannot serve files from disk",
+            )
+        filepath = Path(output_root) / subfolder / filename
+        if not filepath.is_file():
+            raise HTTPException(404, detail=f"File not found: {filename}")
+
+        mime, _ = mimetypes.guess_type(str(filepath))
+        return FileResponse(str(filepath), media_type=mime or "application/octet-stream")
+
     return app
