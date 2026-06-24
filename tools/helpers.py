@@ -15,7 +15,8 @@ def register_and_build_response(
     asset_registry,
     tool_name: Optional[str] = None,
     return_inline_preview: bool = False,
-    session_id: Optional[str] = None
+    session_id: Optional[str] = None,
+    preview_fetch_base_url: Optional[str] = None
 ) -> Dict[str, Any]:
     """Helper function to register asset and build response data.
 
@@ -28,6 +29,8 @@ def register_and_build_response(
         tool_name: Optional tool name (for workflow-backed tools)
         return_inline_preview: Whether to include inline preview
         session_id: Optional session identifier for conversation filtering
+        preview_fetch_base_url: Internal ComfyUI URL for thumbnail fetch
+            (e.g. "http://comfyui:8188"). Uses public asset_url if not provided.
 
     Returns:
         Response data dict with asset_id, asset_url, metadata, etc.
@@ -86,10 +89,12 @@ def register_and_build_response(
             # Only generate preview for images
             supported_types = ("image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif")
             if asset_record.mime_type in supported_types:
-                # Use asset URL (computed from stable identity)
-                preview_url = asset_url
-                if not preview_url:
-                    # Fallback: compute from stable identity
+                # Build preview URL — prefer internal base for container reachability
+                if preview_fetch_base_url:
+                    preview_url = asset_record.get_asset_url(preview_fetch_base_url.rstrip("/"))
+                elif asset_url:
+                    preview_url = asset_url
+                else:
                     preview_url = asset_record.get_asset_url(asset_registry.comfyui_base_url)
                 # Use new encoding function with conservative budget
                 image_bytes = fetch_asset_bytes(preview_url)

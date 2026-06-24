@@ -89,7 +89,7 @@ def create_rest_api(comfyui_client, workflow_manager, defaults_manager, asset_re
             result = comfyui_client.run_custom_workflow(
                 workflow, preferred_output_keys=output_preferences,
             )
-            response = register_and_build_response(result, workflow_id, asset_registry, tool_name=None, return_inline_preview=True)
+            response = register_and_build_response(result, workflow_id, asset_registry, tool_name=None, return_inline_preview=True, preview_fetch_base_url=comfyui_client.base_url)
             if override_report and override_report.get("overrides_dropped"):
                 response["overrides_applied"] = override_report["overrides_applied"]
                 response["overrides_dropped"] = override_report["overrides_dropped"]
@@ -141,6 +141,7 @@ def create_rest_api(comfyui_client, workflow_manager, defaults_manager, asset_re
                 result, definition.workflow_id, asset_registry,
                 tool_name=definition.tool_name,
                 return_inline_preview=True,
+                preview_fetch_base_url=comfyui_client.base_url,
             )
             response_data["markdown"] = build_markdown_response(response_data, tool_name=definition.tool_name)
             return response_data
@@ -191,6 +192,7 @@ def create_rest_api(comfyui_client, workflow_manager, defaults_manager, asset_re
             result, asset.workflow_id, asset_registry,
             tool_name="regenerate", session_id=asset.session_id,
             return_inline_preview=True,
+            preview_fetch_base_url=comfyui_client.base_url,
         )
         response_data["markdown"] = build_markdown_response(response_data, tool_name="regenerate")
         return response_data

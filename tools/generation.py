@@ -114,7 +114,8 @@ def register_workflow_generation_tools(
                     asset_registry,
                     tool_name=definition.tool_name,
                     return_inline_preview=return_inline_preview,
-                    session_id=session_id
+                    session_id=session_id,
+                    preview_fetch_base_url=comfyui_client.base_url,
                 )
                 markdown = build_markdown_response(response_data, tool_name=definition.tool_name)
                 thumb_bytes = response_data.get("_inline_raw_bytes")

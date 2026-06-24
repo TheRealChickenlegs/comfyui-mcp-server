@@ -84,7 +84,8 @@ def register_workflow_tools(
                 asset_registry,
                 tool_name=None,
                 return_inline_preview=return_inline_preview,
-                session_id=None
+                session_id=None,
+                preview_fetch_base_url=comfyui_client.base_url,
             )
 
             # Include override report so the agent can see what was applied/dropped
