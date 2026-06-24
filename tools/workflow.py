@@ -38,7 +38,7 @@ def register_workflow_tools(
         overrides: Optional[Dict[str, Any]] = None,
         options: Optional[Dict[str, Any]] = None,
         return_inline_preview: bool = True
-    ) -> str:
+    ) -> Any:
         """Run a saved ComfyUI workflow with constrained parameter overrides.
         
         Args:

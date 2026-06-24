@@ -187,8 +187,8 @@ def register_workflow_generation_tools(
         
         # Combine: required parameters first, then optional
         parameters = required_params + optional_params
-        annotations["return"] = str
-        _tool_impl.__signature__ = inspect.Signature(parameters, return_annotation=str)
+        annotations["return"] = Any
+        _tool_impl.__signature__ = inspect.Signature(parameters, return_annotation=Any)
         _tool_impl.__annotations__ = annotations
         _tool_impl.__name__ = f"tool_{definition.tool_name}"
         _tool_impl.__doc__ = definition.description
