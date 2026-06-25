@@ -154,21 +154,28 @@ def build_markdown_response(response_data: Dict[str, Any], tool_name: Optional[s
     if tool_label:
         lines.append(f"### {tool_label}")
 
-    # Append ![image] line with a clean URL — but skip it when we already have
-    # an MCP ImageContent block to avoid browser mixed-content errors
+    # Use the asset URL directly if it's already a public HTTPS URL (ComfyUI public URL).
+    # Only rewrite to MCP REST API endpoint if:
+    # 1. COMFYUI_OUTPUT_ROOT is set (shared volume available)
+    # 2. AND the URL is a ComfyUI internal /view? URL (not already public)
     if raw_url and not has_base64:
-        if "/view?" in raw_url:
-            import os, urllib.parse
+        import os, urllib.parse
+        comfyui_output_root = os.environ.get("COMFYUI_OUTPUT_ROOT")
+        public_mcp_url = os.environ.get("PUBLIC_MCP_URL", "")
+        
+        # Check if URL is a ComfyUI /view? pattern that needs rewriting
+        if "/view?" in raw_url and comfyui_output_root and public_mcp_url:
             parsed = urllib.parse.urlparse(raw_url)
             params = urllib.parse.parse_qs(parsed.query)
             filename = params.get("filename", [""])[0]
             sf = params.get("subfolder", [""])[0]
             if filename:
-                mcp_url = os.environ.get("PUBLIC_MCP_URL", "http://localhost:3333")
-                clean_url = f"{mcp_url}/api/v1/assets/file/{filename}"
+                clean_url = f"{public_mcp_url}/api/v1/assets/file/{filename}"
                 if sf:
                     clean_url += f"?subfolder={sf}"
                 raw_url = clean_url
+        # Otherwise use raw_url as-is (should be public ComfyUI HTTPS URL)
+        
         lines.append("")
         lines.append(f"![image]({raw_url})")
 
