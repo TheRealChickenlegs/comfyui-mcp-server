@@ -15,7 +15,7 @@ This proves everything is working.
 ### 1) Clone and set up
 
 ```bash
-git clone https://github.com/joenorton/comfyui-mcp-server.git
+git clone https://github.com/TheRealChickenlegs/comfyui-mcp-server.git
 cd comfyui-mcp-server
 pip install -r requirements.txt
 ```
@@ -69,11 +69,11 @@ If this step succeeds, the system is working.
 
 **Note:** The test client respects server defaults configured via config files, environment variables, or `set_defaults` calls. Only the `prompt` parameter is required; all other parameters use server defaults automatically.
 
-That’s it.
+That's it.
 
 ---
 
-## Use with an AI Agent (Cursor / Claude / n8n)
+## Use with an AI Agent (Cursor / Claude / n8n / Open WebUI / LibreChat)
 
 Once the server is running, you can connect it to an AI client.
 
@@ -104,14 +104,34 @@ This is the primary intended usage mode.
 
 ---
 
+## Attribution
+
+This project is a fork of the original [comfyui-mcp-server](https://github.com/joenorton/comfyui-mcp-server) by **[@joenorton](https://github.com/joenorton)**.
+
+**Original author:** Joe Norton ([@joenorton](https://github.com/joenorton))
+
+**Fork maintainer:** [@TheRealChickenlegs](https://github.com/TheRealChickenlegs) - [https://github.com/TheRealChickenlegs/comfyui-mcp-server](https://github.com/TheRealChickenlegs/comfyui-mcp-server)
+
+**Key changes in this fork:**
+- HTTPS/public URL support for chat interfaces (Open WebUI, LibreChat) via `PUBLIC_COMFYUI_URL`
+- Smart image URL rewrite logic preventing mixed-content blocking in HTTPS chat interfaces
+- FastAPI REST API (`/api/v1/`) for Open WebUI OpenAPI tool import
+- Inline image preview support via `view_image` tool (base64 thumbnails for MCP clients)
+- Flux workflow support for modern image generation
+- Asset publishing tools for web project deployment
+- Job management tools (`get_job`, `get_queue_status`, `cancel_job`) for async workflow control
+- Various bug fixes and improvements
+
+---
+
 ## What You Can Do After It Works
 
-Once you’ve confirmed the server runs and a client can connect, the system supports:
+Once you've confirmed the server runs and a client can connect, the system supports:
 
 * Iterative refinement via `regenerate` (no re-prompting)
 * Explicit asset identity for reliable follow-ups
 * Job polling and cancellation for long-running generations
-* Optional image injection into the AI’s context (`view_image`)
+* Optional image injection into the AI's context (`view_image`)
 * Auto-discovered ComfyUI workflows with parameter exposure
 * Configurable defaults to avoid repeating common settings
 
@@ -119,20 +139,22 @@ Everything below builds on the same basic loop you just tested.
 
 ## Migration Notes (Previous Versions)
 
-If you’ve used earlier versions of this project, a few things have changed.
+If you've used earlier versions of this project, a few things have changed.
 
-### What’s the Same
+### What's the Same
 - You still run a local MCP server that delegates execution to ComfyUI
 - Workflows are still JSON files placed in the `workflows/` directory
 - Image generation behavior is unchanged at its core
 
-### What’s New
+### What's New
 - **Streamable HTTP transport** replaces the older WebSocket-based approach
 - **Explicit job management** (`get_job`, `get_queue_status`, `cancel_job`)
 - **Asset identity** instead of ad-hoc URLs (stable across hostname changes)
 - **Iteration support** via `regenerate` (replay with parameter overrides)
 - **Optional visual feedback** for agents via `view_image`
 - **Configurable defaults** to avoid repeating common parameters
+- **FastAPI REST API** for OpenAPI-based tool import (Open WebUI)
+- **HTTPS/public URL support** for browser-accessible images in chat interfaces
 
 ### What Changed Conceptually
 Earlier versions were a thin request/response bridge.
@@ -261,6 +283,138 @@ For complete configuration details, see [docs/REFERENCE.md](docs/REFERENCE.md#pa
 
 ---
 
+## Environment Variables
+
+All environment variables used by the server, their defaults, and descriptions:
+
+### MCP Server Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MCP_SERVER_HOST` | `127.0.0.1` | Server bind address. Use `0.0.0.0` in Docker to accept external connections. |
+| `MCP_SERVER_PORT` | `9000` | Server port. MCP endpoint will be at `http://host:port/mcp`. |
+| `COMFY_MCP_WORKFLOW_DIR` | `./workflows` | Directory containing workflow JSON files (auto-discovered). |
+| `COMFY_MCP_ASSET_TTL_HOURS` | `24` | Asset registry TTL in hours. Assets expire and are cleaned up after this time. |
+
+### ComfyUI Connection
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `COMFYUI_URL` | `http://localhost:8188` | **Internal** ComfyUI URL. In Docker, use the service name: `http://comfyui:8188`. |
+| `PUBLIC_COMFYUI_URL` | Same as `COMFYUI_URL` | **Public HTTPS URL** for ComfyUI (e.g., `https://comfyui.yourdomain.com`). Used in markdown responses for browser image rendering in chat interfaces (Open WebUI, LibreChat). **Must be HTTPS** to avoid mixed-content blocking when chat interface is served over HTTPS. |
+
+### Public URLs & File Serving
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PUBLIC_MCP_URL` | *(empty)* | Public HTTPS URL for MCP server (e.g., `https://mcp.yourdomain.com`). Used by REST API file serving endpoint (`/api/v1/assets/file/`). |
+| `COMFYUI_OUTPUT_ROOT` | *(empty)* | Path to shared ComfyUI output volume (e.g., `/app/outputs`). When set, enables REST API file serving at `/api/v1/assets/file/{filename}` for direct file access from shared volume. **Only needed if using MCP REST API file serving** (not required for standard MCP tool usage). |
+
+### Default Models (Optional)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `COMFY_MCP_DEFAULT_IMAGE_MODEL` | Auto-detected | Default checkpoint model for image generation workflows. |
+| `COMFY_MCP_DEFAULT_AUDIO_MODEL` | Auto-detected | Default model for audio generation workflows. |
+| `COMFY_MCP_DEFAULT_VIDEO_MODEL` | Auto-detected | Default model for video generation workflows. |
+
+---
+
+## Docker Deployment
+
+### Dockerfile
+
+```dockerfile
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 9000
+
+CMD ["python", "server.py"]
+```
+
+### Docker Compose Example
+
+```yaml
+services:
+  comfyui:
+    # Your existing ComfyUI service
+    # ...
+    networks:
+      - ai-network
+
+  comfyui-mcp-server:
+    container_name: comfyui-mcp-server
+    image: ghcr.io/therealchickenlegs/comfyui-mcp-server:latest
+    # build: .  # Uncomment to build locally instead of pulling
+    networks:
+      - ai-network
+    environment:
+      - MCP_SERVER_HOST=0.0.0.0
+      - MCP_SERVER_PORT=3333
+      - PUBLIC_MCP_URL=https://comfyui-mcp.yourdomain.com
+      - COMFYUI_URL=http://comfyui:8188
+      - PUBLIC_COMFYUI_URL=https://comfyui.yourdomain.com
+      # - COMFYUI_OUTPUT_ROOT=/app/outputs  # Optional: enable REST file serving
+    volumes:
+      # Optional: share ComfyUI output for REST file serving
+      # - ./comfyui-output:/app/outputs
+
+networks:
+  ai-network:
+    driver: bridge
+```
+
+**Key Environment Variables for HTTPS Chat Interfaces:**
+
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `PUBLIC_COMFYUI_URL` | `https://comfyui.yourdomain.com` | **Critical**: Public ComfyUI HTTPS URL. Markdown image URLs will use this domain. |
+| `PUBLIC_MCP_URL` | `https://comfyui-mcp.yourdomain.com` | Public MCP server URL (for REST API). |
+| `COMFYUI_URL` | `http://comfyui:8188` | Internal Docker network URL for ComfyUI API calls. |
+
+**Nginx Proxy Manager Setup:**
+
+1. **ComfyUI Proxy Host:** `comfyui.yourdomain.com` → `http://comfyui:8188` (WebSocket enabled)
+2. **MCP Server Proxy Host:** `comfyui-mcp.yourdomain.com` → `http://comfyui-mcp-server:3333`
+3. **ComfyUI CORS Headers** (Advanced tab):
+   ```nginx
+   add_header Access-Control-Allow-Origin "https://your-chat-domain.com" always;
+   add_header Access-Control-Allow-Methods "GET, OPTIONS" always;
+   add_header Access-Control-Allow-Headers "Authorization, Content-Type" always;
+   ```
+
+---
+
+## Open WebUI / LibreChat Integration
+
+### MCP Integration (Recommended)
+
+1. **Open WebUI:** Settings → Tools → MCP → Add Server
+   - URL: `https://comfyui-mcp.yourdomain.com/mcp` (streamable-http)
+   - Enable the server
+
+2. **Required:** `PUBLIC_COMFYUI_URL=https://comfyui.yourdomain.com` (HTTPS)
+   - Without this, images won't render due to mixed-content blocking
+
+3. **Optional:** `PUBLIC_MCP_URL` + `COMFYUI_OUTPUT_ROOT` for REST API file serving
+
+### REST API Import (Alternative)
+
+Import the OpenAPI spec:
+- URL: `https://comfyui-mcp.yourdomain.com/api/v1/openapi.json`
+- Workspace → Tools → + → Import from OpenAPI
+
+This exposes endpoints like `/generate`, `/assets`, `/jobs` as callable tools.
+
+---
+
 ## Detailed Reference
 
 Complete parameter lists, return schemas, configuration options, and advanced workflow metadata are documented in:
@@ -276,22 +430,28 @@ comfyui-mcp-server/
 ├── comfyui_client.py      # ComfyUI API client
 ├── asset_processor.py     # Image processing utilities
 ├── test_client.py         # Test client
+├── rest_api.py            # FastAPI REST API for OpenAPI import
 ├── managers/              # Core managers
 │   ├── workflow_manager.py
 │   ├── defaults_manager.py
-│   └── asset_registry.py
+│   ├── asset_registry.py
+│   └── publish_manager.py
 ├── tools/                 # MCP tool implementations
 │   ├── generation.py
 │   ├── asset.py
 │   ├── job.py             # Job management tools
 │   ├── configuration.py
-│   └── workflow.py
+│   ├── publish.py
+│   ├── workflow.py
+│   └── helpers.py
 ├── models/                # Data models
 │   ├── workflow.py
 │   └── asset.py
 └── workflows/             # Workflow JSON files
-    ├── generate_image.json
-    └── generate_song.json
+    ├── generate_image_flux.json
+    ├── edit_image_flux.json
+    ├── generate_song.json
+    └── basic_api_test.json
 ```
 
 ## Notes
@@ -300,7 +460,7 @@ comfyui-mcp-server/
 - Ensure your models exist in `<ComfyUI_dir>/models/checkpoints/`
 - Server uses **streamable-http** transport (HTTP-based, not WebSocket)
 - Workflows are auto-discovered - no code changes needed
-- Assets expire after 24 hours (configurable)
+- Assets expire after 24 hours (configurable via `COMFY_MCP_ASSET_TTL_HOURS`)
 - `view_image` only supports images (PNG, JPEG, WebP, GIF)
 - Asset identity uses `(filename, subfolder, type)` instead of URL for robustness
 - Full workflow history is stored for provenance and reproducibility
@@ -334,9 +494,14 @@ comfyui-mcp-server/
 - Use `get_asset_metadata` to verify asset exists before using `regenerate`
 - Check server logs to see if asset was registered successfully
 
+**Images not rendering in HTTPS chat (Open WebUI/LibreChat):**
+- Ensure `PUBLIC_COMFYUI_URL` is set to your **public HTTPS ComfyUI URL**
+- Verify ComfyUI nginx proxy has CORS headers allowing your chat domain
+- Check browser console for mixed-content errors (HTTP images on HTTPS page)
+
 ## Known Limitations (v1.0)
 
-- **Ephemeral asset registry**: `asset_id` references are only valid while the MCP server is running (and until TTL expiry). After restart, previously-issued `asset_id`s can’t be resolved, and regenerate will fail for those assets.
+- **Ephemeral asset registry**: `asset_id` references are only valid while the MCP server is running (and until TTL expiry). After restart, previously-issued `asset_id`s can't be resolved, and regenerate will fail for those assets.
 
 ## Contributing
 
@@ -345,9 +510,11 @@ Issues and pull requests are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for
 ## Acknowledgements
 
 - [@venetanji](https://github.com/venetanji) - streamable-http foundation & PARAM_* system
+- [@joenorton](https://github.com/joenorton) - Original author and maintainer
 
 ## Maintainer
-[@joenorton](https://github.com/joenorton)
+
+[@TheRealChickenlegs](https://github.com/TheRealChickenlegs)
 
 ## License
 
