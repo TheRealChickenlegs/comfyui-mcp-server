@@ -1,20 +1,20 @@
 {
   "name": "Edit Flux Image (img2img)",
-  "description": "Edit an existing image using Flux2 models. Takes an input image from ComfyUI's input directory, encodes it to latent space, and runs the Flux2 advanced sampling pipeline. The 'prompt' and 'image' parameters are required. Image dimensions are automatically derived from the input via GetImageSize.",
+  "description": "Edit an existing image using Flux2 models. Takes an input image from ComfyUI's input directory, encodes it to latent space, and runs the Flux2 advanced sampling pipeline with FluxGuidance. Image dimensions are auto-detected from the input image.",
   "defaults": {
     "steps": 12,
-    "cfg": 1.0,
+    "cfg": 4,
     "sampler_name": "euler"
   },
   "override_mappings": {
-    "image": [["76", "image"]],
-    "prompt": [["75:74", "text"]],
-    "seed": [["75:73", "noise_seed"]],
-    "steps": [["75:62", "steps"]],
-    "cfg": [["75:63", "cfg"]],
-    "sampler_name": [["75:61", "sampler_name"]],
-    "unet": [["75:70", "unet_name"]],
-    "clip": [["75:71", "clip_name"]],
-    "vae": [["75:72", "vae_name"]]
+    "image": [["46", "image"]],
+    "prompt": [["68:6", "text"]],
+    "seed": [["68:25", "noise_seed"]],
+    "steps": [["68:48", "steps"]],
+    "cfg": [["68:26", "guidance"]],
+    "sampler_name": [["68:16", "sampler_name"]],
+    "unet": [["68:12", "unet_name"]],
+    "clip": [["68:38", "clip_name"]],
+    "vae": [["68:10", "vae_name"]]
   }
 }

@@ -1,10 +1,10 @@
 {
   "9": {
     "inputs": {
-      "filename_prefix": "Flux2-Klein",
+      "filename_prefix": "Flux2_dev",
       "images": [
-        "115",
-        1
+        "98:8",
+        0
       ]
     },
     "class_type": "SaveImage",
@@ -12,22 +12,36 @@
       "title": "Save Image"
     }
   },
-  "115": {
+  "98:22": {
     "inputs": {
-      "empty_cache": true,
-      "gc_collect": true,
-      "unload_all_models": true,
-      "image_pass": [
-        "75:65",
+      "model": [
+        "98:102",
+        0
+      ],
+      "conditioning": [
+        "98:26",
         0
       ]
     },
-    "class_type": "VRAM_Debug",
+    "class_type": "BasicGuider",
     "_meta": {
-      "title": "VRAM Debug"
+      "title": "Basic Guider"
     }
   },
-  "75:61": {
+  "98:26": {
+    "inputs": {
+      "guidance": "PARAM_FLOAT_CFG",
+      "conditioning": [
+        "98:6",
+        0
+      ]
+    },
+    "class_type": "FluxGuidance",
+    "_meta": {
+      "title": "FluxGuidance"
+    }
+  },
+  "98:16": {
     "inputs": {
       "sampler_name": "PARAM_STR_SAMPLER_NAME"
     },
@@ -36,64 +50,35 @@
       "title": "KSamplerSelect"
     }
   },
-  "75:62": {
+  "98:10": {
     "inputs": {
-      "steps": "PARAM_INT_STEPS",
-      "width": [
-        "75:68",
-        0
-      ],
-      "height": [
-        "75:69",
-        0
-      ]
+      "vae_name": "PARAM_STR_VAE"
     },
-    "class_type": "Flux2Scheduler",
+    "class_type": "VAELoader",
     "_meta": {
-      "title": "Flux2Scheduler"
+      "title": "Load VAE"
     }
   },
-  "75:63": {
-    "inputs": {
-      "cfg": "PARAM_FLOAT_CFG",
-      "model": [
-        "75:70",
-        0
-      ],
-      "positive": [
-        "75:74",
-        0
-      ],
-      "negative": [
-        "75:67",
-        0
-      ]
-    },
-    "class_type": "CFGGuider",
-    "_meta": {
-      "title": "CFGGuider"
-    }
-  },
-  "75:64": {
+  "98:13": {
     "inputs": {
       "noise": [
-        "75:73",
+        "98:25",
         0
       ],
       "guider": [
-        "75:63",
+        "98:22",
         0
       ],
       "sampler": [
-        "75:61",
+        "98:16",
         0
       ],
       "sigmas": [
-        "75:62",
+        "98:48",
         0
       ],
       "latent_image": [
-        "75:66",
+        "98:47",
         0
       ]
     },
@@ -102,14 +87,14 @@
       "title": "SamplerCustomAdvanced"
     }
   },
-  "75:65": {
+  "98:8": {
     "inputs": {
       "samples": [
-        "75:64",
+        "98:13",
         0
       ],
       "vae": [
-        "75:72",
+        "98:10",
         0
       ]
     },
@@ -118,74 +103,7 @@
       "title": "VAE Decode"
     }
   },
-  "75:66": {
-    "inputs": {
-      "width": [
-        "75:68",
-        0
-      ],
-      "height": [
-        "75:69",
-        0
-      ],
-      "batch_size": 1
-    },
-    "class_type": "EmptyFlux2LatentImage",
-    "_meta": {
-      "title": "Empty Flux 2 Latent"
-    }
-  },
-  "75:67": {
-    "inputs": {
-      "text": "PARAM_NEGATIVE_PROMPT",
-      "clip": [
-        "75:71",
-        0
-      ]
-    },
-    "class_type": "CLIPTextEncode",
-    "_meta": {
-      "title": "CLIP Text Encode (Negative Prompt)"
-    }
-  },
-  "75:68": {
-    "inputs": {
-      "value": "PARAM_INT_WIDTH"
-    },
-    "class_type": "PrimitiveInt",
-    "_meta": {
-      "title": "Width"
-    }
-  },
-  "75:69": {
-    "inputs": {
-      "value": "PARAM_INT_HEIGHT"
-    },
-    "class_type": "PrimitiveInt",
-    "_meta": {
-      "title": "Height"
-    }
-  },
-  "75:73": {
-    "inputs": {
-      "noise_seed": "PARAM_INT_SEED"
-    },
-    "class_type": "RandomNoise",
-    "_meta": {
-      "title": "RandomNoise"
-    }
-  },
-  "75:70": {
-    "inputs": {
-      "unet_name": "PARAM_STR_UNET",
-      "weight_dtype": "default"
-    },
-    "class_type": "UNETLoader",
-    "_meta": {
-      "title": "Load Diffusion Model"
-    }
-  },
-  "75:71": {
+  "98:38": {
     "inputs": {
       "clip_name": "PARAM_STR_CLIP",
       "type": "flux2",
@@ -196,26 +114,139 @@
       "title": "Load CLIP"
     }
   },
-  "75:72": {
+  "98:48": {
     "inputs": {
-      "vae_name": "PARAM_STR_VAE"
+      "steps": "PARAM_INT_STEPS",
+      "width": "PARAM_INT_WIDTH",
+      "height": "PARAM_INT_HEIGHT"
     },
-    "class_type": "VAELoader",
+    "class_type": "Flux2Scheduler",
     "_meta": {
-      "title": "Load VAE"
+      "title": "Flux2Scheduler"
     }
   },
-  "75:74": {
+  "98:47": {
+    "inputs": {
+      "width": "PARAM_INT_WIDTH",
+      "height": "PARAM_INT_HEIGHT",
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "Empty Flux 2 Latent"
+    }
+  },
+  "98:25": {
+    "inputs": {
+      "noise_seed": "PARAM_INT_SEED"
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "98:6": {
     "inputs": {
       "text": "PARAM_PROMPT",
       "clip": [
-        "75:71",
+        "98:38",
         0
       ]
     },
     "class_type": "CLIPTextEncode",
     "_meta": {
       "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "98:101": {
+    "inputs": {
+      "lora_name": "Flux_2-Turbo-LoRA_comfyui.safetensors",
+      "strength_model": 1,
+      "model": [
+        "98:12",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "98:102": {
+    "inputs": {
+      "switch": [
+        "98:104",
+        0
+      ],
+      "on_false": [
+        "98:12",
+        0
+      ],
+      "on_true": [
+        "98:101",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch(model)"
+    }
+  },
+  "98:100": {
+    "inputs": {
+      "value": 20
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Steps"
+    }
+  },
+  "98:99": {
+    "inputs": {
+      "value": 8
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Steps"
+    }
+  },
+  "98:103": {
+    "inputs": {
+      "switch": [
+        "98:104",
+        0
+      ],
+      "on_false": [
+        "98:100",
+        0
+      ],
+      "on_true": [
+        "98:99",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch(steps)"
+    }
+  },
+  "98:104": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Enable Turbo LoRA"
+    }
+  },
+  "98:12": {
+    "inputs": {
+      "unet_name": "PARAM_STR_UNET",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
     }
   }
 }

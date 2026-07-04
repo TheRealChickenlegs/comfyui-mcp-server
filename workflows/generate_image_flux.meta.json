@@ -1,24 +1,23 @@
 {
   "name": "Generate Flux Image",
-  "description": "Generate images using Flux2 models with separate UNet, CLIP, and VAE loaders. Uses a custom advanced sampling pipeline (SamplerCustomAdvanced) with Flux2Scheduler, CFGGuider, and KSamplerSelect. Only the 'prompt' parameter is required — all others have sensible defaults.",
+  "description": "Generate images using Flux2 models with separate UNet, CLIP, and VAE loaders. Uses BasicGuider with FluxGuidance for advanced conditioning. Supports configurable steps, width, height, CFG guidance, sampler, and model selection.",
   "defaults": {
     "width": 1024,
     "height": 1024,
     "steps": 20,
-    "cfg": 5.0,
+    "cfg": 4,
     "sampler_name": "euler"
   },
   "override_mappings": {
-    "prompt": [["75:74", "text"]],
-    "negative_prompt": [["75:67", "text"]],
-    "seed": [["75:73", "noise_seed"]],
-    "steps": [["75:62", "steps"]],
-    "cfg": [["75:63", "cfg"]],
-    "width": [["75:68", "value"]],
-    "height": [["75:69", "value"]],
-    "sampler_name": [["75:61", "sampler_name"]],
-    "unet": [["75:70", "unet_name"]],
-    "clip": [["75:71", "clip_name"]],
-    "vae": [["75:72", "vae_name"]]
+    "prompt": [["98:6", "text"]],
+    "seed": [["98:25", "noise_seed"]],
+    "steps": [["98:48", "steps"]],
+    "cfg": [["98:26", "guidance"]],
+    "width": [["98:48", "width"], ["98:47", "width"]],
+    "height": [["98:48", "height"], ["98:47", "height"]],
+    "sampler_name": [["98:16", "sampler_name"]],
+    "unet": [["98:12", "unet_name"]],
+    "clip": [["98:38", "clip_name"]],
+    "vae": [["98:10", "vae_name"]]
   }
 }
