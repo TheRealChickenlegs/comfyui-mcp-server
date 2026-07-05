@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Any, Dict, Optional
 
-from asset_processor import encode_preview_for_mcp, fetch_asset_bytes, get_cache_key
+
 
 logger = logging.getLogger("MCP_Server")
 
@@ -14,9 +14,7 @@ def register_and_build_response(
     workflow_id: str,
     asset_registry,
     tool_name: Optional[str] = None,
-    return_inline_preview: bool = False,
     session_id: Optional[str] = None,
-    preview_fetch_base_url: Optional[str] = None
 ) -> Dict[str, Any]:
     """Helper function to register asset and build response data.
 
@@ -27,10 +25,7 @@ def register_and_build_response(
         workflow_id: Workflow ID
         asset_registry: AssetRegistry instance
         tool_name: Optional tool name (for workflow-backed tools)
-        return_inline_preview: Whether to include inline preview
         session_id: Optional session identifier for conversation filtering
-        preview_fetch_base_url: Internal ComfyUI URL for thumbnail fetch
-            (e.g. "http://comfyui:8188"). Uses public asset_url if not provided.
 
     Returns:
         Response data dict with asset_id, asset_url, metadata, etc.
@@ -83,44 +78,6 @@ def register_and_build_response(
     if tool_name:
         response_data["tool"] = tool_name
     
-    # Include inline preview if requested
-    if return_inline_preview:
-        try:
-            # Try reading from local disk first (shared volume)
-            import os
-            image_bytes = None
-            output_root = os.environ.get("COMFYUI_OUTPUT_ROOT")
-            if output_root:
-                from pathlib import Path
-                local_path = Path(output_root) / asset_record.subfolder / asset_record.filename
-                if local_path.is_file():
-                    image_bytes = local_path.read_bytes()
-            # Fall back to HTTP fetch if not available on disk
-            if image_bytes is None:
-                if preview_fetch_base_url:
-                    preview_url = asset_record.get_asset_url(preview_fetch_base_url.rstrip("/"))
-                elif asset_url:
-                    preview_url = asset_url
-                else:
-                    preview_url = asset_record.get_asset_url(asset_registry.comfyui_base_url)
-                image_bytes = fetch_asset_bytes(preview_url)
-
-            if image_bytes:
-                cache_key = get_cache_key(asset_record.asset_id, 256, 70)
-                encoded = encode_preview_for_mcp(
-                    image_bytes,
-                    max_dim=256,
-                    max_b64_chars=100_000,
-                    quality=70,
-                    cache_key=cache_key,
-                )
-                response_data["inline_preview_base64"] = f"data:{encoded.mime_type};base64,{encoded.b64}"
-                response_data["inline_preview_mime_type"] = encoded.mime_type
-                response_data["_inline_raw_bytes"] = encoded.raw_bytes
-        except Exception as e:
-            logger.warning(f"Failed to generate inline preview: {e}")
-            # Don't fail the request if preview generation fails
-    
     # Include base64 image data if available (legacy)
     if "image_base64" in result:
         response_data["image_base64"] = result["image_base64"]
@@ -147,7 +104,6 @@ def build_markdown_response(response_data: Dict[str, Any], tool_name: Optional[s
         return json.dumps(response_data)
 
     tool_label = (tool_name or response_data.get("tool", "")).replace("_", " ").title()
-    has_base64 = bool(response_data.get("inline_preview_base64"))
     raw_url = response_data.get("asset_url") or response_data.get("image_url") or ""
 
     lines: list[str] = []
@@ -158,7 +114,7 @@ def build_markdown_response(response_data: Dict[str, Any], tool_name: Optional[s
     # Only rewrite to MCP REST API endpoint if:
     # 1. COMFYUI_OUTPUT_ROOT is set (shared volume available)
     # 2. AND the URL is a ComfyUI internal /view? URL (not already public)
-    if raw_url and not has_base64:
+    if raw_url:
         import os, urllib.parse
         comfyui_output_root = os.environ.get("COMFYUI_OUTPUT_ROOT")
         public_mcp_url = os.environ.get("PUBLIC_MCP_URL", "")

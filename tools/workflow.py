@@ -37,7 +37,6 @@ def register_workflow_tools(
         workflow_id: str,
         overrides: Optional[Dict[str, Any]] = None,
         options: Optional[Dict[str, Any]] = None,
-        return_inline_preview: bool = True
     ) -> Any:
         """Run a saved ComfyUI workflow with constrained parameter overrides.
         
@@ -45,11 +44,9 @@ def register_workflow_tools(
             workflow_id: The workflow ID (filename stem, e.g., "generate_image")
             overrides: Optional dict of parameter overrides (e.g., {"prompt": "a cat", "width": 1024})
             options: Optional dict of execution options (reserved for future use)
-            return_inline_preview: If True, include a small thumbnail base64 in response (256px, ~100KB)
         
         Returns:
-            Result with asset_url, workflow_id, and execution metadata. If return_inline_preview=True,
-            also includes inline_preview_base64 for immediate viewing.
+            Result with asset_url, workflow_id, and execution metadata.
         """
         if overrides is None:
             overrides = {}
@@ -83,9 +80,7 @@ def register_workflow_tools(
                 workflow_id,
                 asset_registry,
                 tool_name=None,
-                return_inline_preview=return_inline_preview,
                 session_id=None,
-                preview_fetch_base_url=comfyui_client.base_url,
             )
 
             # Include override report so the agent can see what was applied/dropped
@@ -93,12 +88,7 @@ def register_workflow_tools(
                 response["overrides_applied"] = override_report["overrides_applied"]
                 response["overrides_dropped"] = override_report["overrides_dropped"]
 
-            markdown = build_markdown_response(response, tool_name=None)
-            thumb_bytes = response.get("_inline_raw_bytes")
-            if thumb_bytes:
-                from mcp.server.fastmcp.utilities.types import Image as MCPImage
-                return [MCPImage(data=thumb_bytes, format="webp"), markdown]
-            return markdown
+            return build_markdown_response(response, tool_name=None)
         except Exception as exc:
             logger.exception("Workflow '%s' failed", workflow_id)
             return {"error": str(exc)}

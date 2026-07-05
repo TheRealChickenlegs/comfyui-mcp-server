@@ -25,8 +25,6 @@ def register_workflow_generation_tools(
     
     def _register_workflow_tool(definition: WorkflowToolDefinition):
         def _tool_impl(*args, **kwargs):
-            # Extract return_inline_preview if present (not a workflow parameter)
-            return_inline_preview = kwargs.pop("return_inline_preview", True)
             # Session tracking can be added via request context in the future
             session_id = None
             
@@ -113,15 +111,9 @@ def register_workflow_generation_tools(
                     definition.workflow_id,
                     asset_registry,
                     tool_name=definition.tool_name,
-                    return_inline_preview=return_inline_preview,
                     session_id=session_id,
-                    preview_fetch_base_url=comfyui_client.base_url,
                 )
                 markdown = build_markdown_response(response_data, tool_name=definition.tool_name)
-                thumb_bytes = response_data.get("_inline_raw_bytes")
-                if thumb_bytes:
-                    from mcp.server.fastmcp.utilities.types import Image as MCPImage
-                    return [MCPImage(data=thumb_bytes, format="webp"), markdown]
                 return markdown
                 
             except Exception as exc:
@@ -176,15 +168,6 @@ def register_workflow_generation_tools(
                 )
                 optional_params.append(parameter)
             annotations[param.name] = param.annotation
-        
-        # Add return_inline_preview as optional parameter
-        optional_params.append(inspect.Parameter(
-            name="return_inline_preview",
-            kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            annotation=bool,
-            default=False,
-        ))
-        annotations["return_inline_preview"] = bool
         
         # Combine: required parameters first, then optional
         parameters = required_params + optional_params
@@ -350,7 +333,6 @@ def register_regenerate_tool(
     def regenerate(
         asset_id: str,
         seed: Optional[int] = None,
-        return_inline_preview: bool = False,
         param_overrides: Optional[Dict[str, Any]] = None
     ) -> dict:
         """Regenerate an existing asset with optional parameter overrides.
@@ -361,7 +343,6 @@ def register_regenerate_tool(
         Args:
             asset_id: ID of the asset to regenerate
             seed: New random seed (None = generate new random seed, -1 = use original seed)
-            return_inline_preview: If True, include a small thumbnail base64 in response
             param_overrides: Dict of workflow parameters to override (e.g., {"steps": 30, "cfg": 8.0, "prompt": "new prompt"})
         
         Returns:
@@ -426,7 +407,6 @@ def register_regenerate_tool(
                 asset.workflow_id,
                 asset_registry,
                 tool_name="regenerate",
-                return_inline_preview=return_inline_preview,
                 session_id=asset.session_id  # Preserve original session
             )
         except Exception as e:
