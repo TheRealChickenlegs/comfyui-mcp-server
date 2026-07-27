@@ -1,0 +1,21 @@
+services:
+  comfyui-mcp:
+    build: .
+    container_name: comfyui-mcp-server
+    ports:
+      - "9000:9000"
+    environment:
+      - COMFYUI_URL=http://comfyui:8188
+      - PUBLIC_COMFYUI_URL=http://comfyui:8188
+      - MCP_SERVER_HOST=0.0.0.0
+      - COMFYUI_MAX_RESPONSE_MB=100
+    env_file:
+      - .env
+    restart: unless-stopped
+    user: "1000:1000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import http.client; c=http.client.HTTPConnection('localhost', 9000); c.request('GET', '/health'); r=c.getresponse(); assert r.status == 200"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
