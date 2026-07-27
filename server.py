@@ -156,14 +156,8 @@ try:
     else:
         logger.info(f"ComfyUI output root: not configured (tried {len(publish_config.comfyui_tried_paths)} paths)")
 except Exception as e:
-    logger.warning(f"Failed to initialize publish manager: {e}. Publishing features may be unavailable.")
-    # Still create a minimal manager so tools can register and return errors
-    try:
-        from managers.publish_manager import PublishConfig, PublishManager
-        publish_config = PublishConfig(comfyui_url=COMFYUI_URL)
-        publish_manager = PublishManager(publish_config)
-    except Exception:
-        publish_manager = None
+    logger.warning(f"Failed to initialize publish manager: {e}. Publishing features will be unavailable.")
+    publish_manager = None
 
 
 # Define application context (for future use)
