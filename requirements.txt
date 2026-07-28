@@ -4,6 +4,7 @@ mcp>=0.9.0
 
 # Image processing (required for view_image tool)
 Pillow>=10.0.0
+fastapi>=0.109.0
 
 # Testing (optional, for development)
 # Note: pytest-asyncio only needed if you add async tests
