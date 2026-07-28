@@ -112,7 +112,6 @@ def register_workflow_generation_tools(
                 
                 # Register asset and build response
                 response_data = register_and_build_response(
-                response_data = register_and_build_response(
                     result,
                     definition.workflow_id,
                     asset_registry,
